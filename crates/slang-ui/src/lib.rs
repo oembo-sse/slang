@@ -14,8 +14,11 @@ use serde::{Deserialize, Serialize};
 use slang::{Position, SourceFile, Span};
 use tapi::endpoints::RouterExt;
 use tower_http::services::ServeFile;
+use tracing_subscriber::prelude::*;
 
-pub type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
+pub type Result<T, E = color_eyre::eyre::Error> = std::result::Result<T, E>;
+
+pub use color_eyre::eyre::{bail, eyre};
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
@@ -37,6 +40,22 @@ pub struct Context {
     reports: RwLock<Vec<Report>>,
 }
 
+struct Logger {}
+
+impl smtlib::Logger for Logger {
+    fn exec(&self, cmd: &smtlib::lowlevel::ast::Command) {
+        let span = tracing::span!(tracing::Level::INFO, "smt");
+        let _enter = span.enter();
+        tracing::info!("> {cmd}")
+    }
+
+    fn response(&self, _cmd: &smtlib::lowlevel::ast::Command, res: &str) {
+        let span = tracing::span!(tracing::Level::INFO, "smt");
+        let _enter = span.enter();
+        tracing::info!("< {}", res.trim())
+    }
+}
+
 impl Context {
     fn new(_file: &SourceFile) -> Context {
         Context {
@@ -46,6 +65,7 @@ impl Context {
 
     pub fn solver(&self) -> Result<smtlib::Solver<smtlib::backend::z3_binary::Z3Binary>> {
         let mut solver = smtlib::Solver::new(smtlib::backend::z3_binary::Z3Binary::new("z3")?)?;
+        solver.set_logger(Logger {});
         solver.set_timeout(2_000)?;
         Ok(solver)
     }
@@ -75,7 +95,7 @@ impl Context {
     #[track_caller]
     pub fn todo(&self, span: Span) {
         let msg = format!("not yet implemented: {}", std::panic::Location::caller());
-        eprintln!("{msg}");
+        tracing::error!("{msg}");
         self.warning(span, msg);
     }
 }
@@ -98,6 +118,25 @@ pub trait Hook {
 struct Asset;
 
 pub async fn run(hook: impl Hook + Send + Sync + 'static) {
+    let _ = color_eyre::install();
+
+    tracing_subscriber::Registry::default()
+        .with(tracing_error::ErrorLayer::default())
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
+                .from_env_lossy(),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_target(false)
+                .without_time(),
+        )
+        .with(tracing_subscriber::filter::FilterFn::new(|m| {
+            !m.target().contains("hyper")
+        }))
+        .init();
+
     run_impl(Arc::new(hook)).await
 }
 async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) {
@@ -176,7 +215,13 @@ fn endpoints() -> tapi::endpoints::Endpoints<'static, AppState> {
     ])
 }
 
-fn run_hook(hook: &dyn Hook, src: &str) -> Vec<Report> {
+fn run_hook(
+    hook: &dyn Hook,
+    src: &str,
+) -> Result<Vec<Report>, (Vec<Report>, color_eyre::eyre::Error)> {
+    let span = tracing::span!(parent: tracing::Span::none(), tracing::Level::INFO, "analyze");
+    let _enter = span.enter();
+
     let file = slang::parse_file(src);
     let mut cx = Context::new(&file);
     for err in &file.parse_errors {
@@ -185,16 +230,10 @@ fn run_hook(hook: &dyn Hook, src: &str) -> Vec<Report> {
     for err in &file.tc_errors {
         cx.error(err.span(), err.msg());
     }
-    let result = hook.analyze(&mut cx, &file);
-
-    match result {
-        Ok(()) => {}
-        Err(err) => {
-            eprintln!("{err:?}")
-        }
+    match hook.analyze(&mut cx, &file) {
+        Ok(()) => Ok(cx.reports()),
+        Err(err) => Err((cx.reports(), err)),
     }
-
-    cx.reports()
 }
 
 #[derive(Debug, Serialize, Deserialize, tapi::Tapi)]
@@ -226,11 +265,18 @@ pub struct AnalyzeParams {
 #[derive(Debug, Serialize, tapi::Tapi)]
 pub struct AnalyzeResult {
     markers: Vec<monaco::MarkerData>,
+    analysis_errored: bool,
 }
 
 #[tapi::tapi(path = "/analyze", method = Post)]
 async fn analyze(state: State<AppState>, params: Json<AnalyzeParams>) -> Json<AnalyzeResult> {
-    let reports = run_hook(state.hook.as_ref(), &params.file);
+    let (reports, analysis_errored) = match run_hook(state.hook.as_ref(), &params.file) {
+        Ok(reports) => (reports, false),
+        Err((reports, err)) => {
+            eprintln!("{err:?}");
+            (reports, true)
+        }
+    };
     Json(AnalyzeResult {
         markers: reports
             .iter()
@@ -246,6 +292,7 @@ async fn analyze(state: State<AppState>, params: Json<AnalyzeParams>) -> Json<An
                 span: monaco::MonacoSpan::from_source_span(&params.file, r.span),
             })
             .collect(),
+        analysis_errored,
     })
 }
 

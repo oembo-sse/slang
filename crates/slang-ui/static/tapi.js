@@ -106,12 +106,12 @@ const sse = (url, resTy) => (params, options) => {
  */
 
 
+  /** @typedef {"Alive"} slang_ui.Heartbeat */
+  export const HEARTBEAT = /** @type {slang_ui.Heartbeat[]} */ (["Alive"]);
   /**
    * @typedef {{ file: string }} slang_ui.AnalyzeParams */
   /**
-   * @typedef {{ markers: slang_ui.monaco.MarkerData[] }} slang_ui.AnalyzeResult */
-  /** @typedef {"Alive"} slang_ui.Heartbeat */
-  export const HEARTBEAT = /** @type {slang_ui.Heartbeat[]} */ (["Alive"]);
+   * @typedef {{ markers: slang_ui.monaco.MarkerData[], analysis_errored: boolean }} slang_ui.AnalyzeResult */
   /**
    * @typedef {{ file: string, pos: slang_ui.monaco.MonacoPosition }} slang_ui.HoverParams */
   /**

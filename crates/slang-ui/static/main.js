@@ -16,6 +16,10 @@ const SEVERITY_MAP = {
 };
 
 const DEFAULT_PROGRAM = `
+method trivial(): Bool {
+  assert true
+}
+
 method simple(a: Int): Int
   requires a > 0
   ensures result == 12
@@ -130,8 +134,6 @@ const run = async () => {
   if (!model) return;
 
   const updateUI = () => {
-    console.log("Update UI", { state, analysis });
-
     statusBarText.textContent = `${state} / ${analysis.type}`;
 
     const colors = {
@@ -248,13 +250,10 @@ const run = async () => {
 };
 
 monaco.languages.registerHoverProvider(LANGUAGE_ID, {
-  async provideHover(model, position) {
+  async provideHover(model, pos) {
     const result = await tapi.hover({
       file: model.getValue(),
-      pos: {
-        column: position.column,
-        lineNumber: position.lineNumber,
-      },
+      pos,
     }).data;
 
     if (result) {

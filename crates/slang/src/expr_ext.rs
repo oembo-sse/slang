@@ -159,7 +159,6 @@ impl Expr {
         self.pre_order_map(|x| f(x).then(|| to.clone()))
     }
     pub fn pre_order_map(&self, mut f: impl FnMut(&Expr) -> Option<Expr>) -> Expr {
-        eprintln!("[pre_order_map] here...");
         self.pre_order_map_impl(&mut f)
             .unwrap_or_else(|| self.clone())
     }

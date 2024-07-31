@@ -1,19 +1,21 @@
-use anyhow::bail;
 use slang::ast::{self, Expr, ExprKind, Stmt, StmtKind};
-use slang_ui::Result;
-use smtlib::Sorted;
+use slang_ui::{bail, Result};
+use smtlib::prelude::*;
 
 struct App;
 
 impl slang_ui::Hook for App {
     fn analyze(&self, cx: &mut slang_ui::Context, file: &slang::SourceFile) -> Result<()> {
         // if file.contains_error() {
-        //     return;
+        //     bail!("wont continue while we have errors");
         // }
 
         let mut solver = cx.solver()?;
 
         for d in file.domains() {
+            let span = tracing::info_span!("domain", name=%d.name);
+            let _enter = span.enter();
+
             for f in d.functions() {
                 let smt_fun = {
                     let args: Result<Vec<_>> =
@@ -52,10 +54,16 @@ impl slang_ui::Hook for App {
         }
 
         for m in file.methods() {
+            let span = tracing::info_span!("method", name=%m.name);
+            let _enter = span.enter();
+
             assert_true_lint(cx, &m.body.stmt);
         }
 
         for m in file.methods() {
+            let span = tracing::info_span!("method", name=%m.name);
+            let _enter = span.enter();
+
             let pre = m
                 .requires()
                 .cloned()
@@ -118,15 +126,15 @@ fn smt_expr(expr: &Expr) -> Result<smtlib::terms::Dynamic> {
                 ast::Op::Sub => (l.as_int()? - r.as_int()?).into_dynamic(),
                 ast::Op::Lsh => (l.as_int()? << r.as_int()?).into_dynamic(),
                 ast::Op::Rsh => (l.as_int()? >> r.as_int()?).into_dynamic(),
-                ast::Op::Lt => (l.as_int()?.lt(r.as_int()?)).into_dynamic(),
-                ast::Op::Le => (l.as_int()?.le(r.as_int()?)).into_dynamic(),
-                ast::Op::Gt => (l.as_int()?.gt(r.as_int()?)).into_dynamic(),
-                ast::Op::Ge => (l.as_int()?.ge(r.as_int()?)).into_dynamic(),
-                ast::Op::Eq => (l._eq(r)).into_dynamic(),
-                ast::Op::Ne => (l._neq(r)).into_dynamic(),
+                ast::Op::Lt => l.as_int()?.lt(r.as_int()?).into_dynamic(),
+                ast::Op::Le => l.as_int()?.le(r.as_int()?).into_dynamic(),
+                ast::Op::Gt => l.as_int()?.gt(r.as_int()?).into_dynamic(),
+                ast::Op::Ge => l.as_int()?.ge(r.as_int()?).into_dynamic(),
+                ast::Op::Eq => l._eq(r).into_dynamic(),
+                ast::Op::Ne => l._neq(r).into_dynamic(),
                 ast::Op::And => (l.as_bool()? & r.as_bool()?).into_dynamic(),
                 ast::Op::Or => (l.as_bool()? | r.as_bool()?).into_dynamic(),
-                ast::Op::Imp => (l.as_bool()?.implies(r.as_bool()?)).into_dynamic(),
+                ast::Op::Imp => l.as_bool()?.implies(r.as_bool()?).into_dynamic(),
             })
         }
         ExprKind::Ite(c, t, e) => Ok(smt_expr(c)?.as_bool()?.ite(smt_expr(t)?, smt_expr(e)?)),
@@ -180,6 +188,15 @@ fn assert_true_lint(cx: &mut slang_ui::Context, stmt: &Stmt) {
                 cx.info(x.span, "asserting true is a bit silly, no?".to_string());
             }
         }
+        StmtKind::Match { body } | StmtKind::Loop { body, .. } => {
+            for case in &body.cases {
+                assert_true_lint(cx, &case.stmt);
+            }
+        }
+        StmtKind::For { body, .. } => {
+            assert_true_lint(cx, &body.stmt);
+        }
+
         _ => {}
     }
 }
@@ -230,12 +247,7 @@ fn wp(cx: &slang_ui::Context, stmt: &Stmt, q: Expr) -> Expr {
 
             cases.rfold(after.imp(&q), |a, b| a & b)
         }
-        StmtKind::For {
-            name,
-            range,
-            invariants,
-            body,
-        } => {
+        StmtKind::For { name, .. } => {
             cx.warning(name.span, "WP of for-loops not yet implemented");
             q.clone()
         }
