@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>slang</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="lib/monaco/editor.api.css" />
+  </head>
+  <body>
+    <div>
+      <div
+        class="w-full h-screen grid grid-rows-[auto_1fr_auto] overflow-hidden"
+      >
+        <div>Hello</div>
+
+        <div class="relative overflow-hidden grid">
+          <div id="container" class="absolute inset-0"></div>
+        </div>
+
+        <div id="status-bar">
+          <div class="flex items-center p-2 text-2xl text-white">
+            <span id="status-bar-text" class="font-bold"> ... </span>
+            <div class="flex-1" />
+            <span class="text-xl">
+              <!-- {#if !$parseError && $state == 'checked'}
+              {#if $result.is_fully_annotated}
+                The program is <b>fully annotated</b>
+              {:else}
+                The program is <b><i>not</i> fully annotated</b>
+              {/if}
+            {/if} -->
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

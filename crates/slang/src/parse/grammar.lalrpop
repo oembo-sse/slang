@@ -1,0 +1,249 @@
+use crate::{ast::*, parse::*, span::*};
+
+grammar;
+
+extern {
+    type Error = CustomError;
+}
+
+match {
+    // Skip whitespace and comments
+    r"\s*" => { },
+    r"//[^\n\r]*[\n\r]*" => { }, // `// comment`
+    r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { }, // `/* comment */`
+    _
+}
+
+Spanned<T>: (Span, T) = {
+    <l:@L> <t:T> <r:@R> => (Span::from_start_end(l, r), t)
+}
+
+Ident: Ident = r"[a-zA-Z_][a-zA-Z0-9_]*" => Ident(<>.to_string());
+Name: Name = Spanned<Ident> => Name { span: <>.0, ident: <>.1 };
+Var: Var = Spanned<(<Name> ":" <Spanned<Type>>)> => Var {
+    span: <>.0,
+    name: <>.1 .0,
+    ty: <>.1 .1,
+};
+
+pub File: File = {
+    Item* => File { items: <> }
+}
+
+pub Item: Item = {
+    Method => Item::Method(<>),
+    Function => Item::Function(<>),
+    Domain => Item::Domain(<>),
+    Global => Item::Global(<>),
+}
+
+Specification: Specification = {
+    Spanned<("requires" <Expr>)> => Specification::Requires { span: <>.0, expr: <>.1 },
+    Spanned<("ensures" <Expr>)> => Specification::Ensures { span: <>.0, expr: <>.1 },
+    Spanned<("modifies" <Name>)> => Specification::Modifies { span: <>.0, name: <>.1 },
+}
+
+Specifications: Vec<Specification> = Specification*;
+
+pub Method: Method = {
+    <l:@L> "method" <name:Name> "(" <args:Args> ")" <return_ty:(":" <Spanned<Type>>)?> <specifications:Specifications> <body:Block> <r:@R> =>
+        Method {
+            span: Span::from_start_end(l, r),
+            name,
+            args,
+            return_ty,
+            specifications,
+            body,
+        },
+}
+
+pub Function: Function = {
+    <l:@L> "function" <name:Name> "(" <args:Args> ")" ":" <return_ty:Spanned<Type>> <specifications:Specifications> <body:("{" <Expr> "}")?> <r:@R> =>
+        Function {
+            span: Span::from_start_end(l, r),
+            name,
+            args,
+            return_ty,
+            specifications,
+            body,
+        },
+}
+
+Domain: Domain = {
+    <l:@L> "domain" <name:Name> "{" <items:DomainItem*> "}" <r:@R> =>
+        Domain {
+            span: Span::from_start_end(l, r),
+            name,
+            items,
+        }
+}
+
+DomainItem: DomainItem = {
+    DomainAxiom => DomainItem::Axiom(<>),
+    DomainFunction => DomainItem::Function(<>),
+}
+
+DomainAxiom: DomainAxiom = {
+    <l:@L> "axiom" <expr:Expr> <r:@R> => DomainAxiom {
+        span: Span::from_start_end(l, r),
+        expr,
+    }
+}
+
+DomainFunction: Function = {
+    <l:@L> "function" <name:Name> "(" <args:Args> ")" ":" <return_ty:Spanned<Type>> <specifications:Specifications> <r:@R> =>
+        Function {
+            span: Span::from_start_end(l, r),
+            name,
+            args,
+            return_ty,
+            specifications,
+            body: None,
+        }
+}
+
+Global: Global = {
+    <l:@L> "global" <var:Var> <init:(":=" <Expr>)?> <r:@R> => Global {
+        span: Span::from_start_end(l, r),
+        var,
+        init,
+    }
+}
+
+Args: Vec<Var> = {
+    <mut xs:(<Var> ",")*> <x:Var?> => {
+        if let Some(x) = x { xs.push(x); }
+        xs
+    }
+}
+
+pub Stmt: Stmt = {
+    #[precedence(level = "0")]
+    <l:@L> "var" <name:Name> <ty:(":" <Spanned<Type>>)?> <expr:(":=" <Expr>)?> <r:@R> =>
+        StmtKind::VarDefinition { ty: ty.unwrap_or((name.span, Type::Unresolved)), name, expr }.parsed(l, r),
+    <l:@L> <name:Name> ":=" <expr:Expr> <r:@R> =>
+        StmtKind::Assignment { name, expr }.parsed(l, r),
+
+    <l:@L> "match" <body:Cases> <r:@R> =>
+        StmtKind::Match { body }.parsed(l, r),
+    <l:@L> "loop" <invariants:Invariant*> <body:Cases> <r:@R> =>
+        StmtKind::Loop { invariants, body }.parsed(l, r),
+    <l:@L> "for" <name:Name> "in" <range:Range> <invariants:Invariant*> <body:Block> <r:@R> =>
+        StmtKind::For { name, range, invariants, body }.parsed(l, r),
+
+    <l:@L> "break" <r:@R> => StmtKind::Break.parsed(l, r),
+    <l:@L> "continue" <r:@R> => StmtKind::Continue.parsed(l, r),
+    <l:@L> "return" <expr:Expr?> <r:@R> => StmtKind::Return { expr }.parsed(l, r),
+
+    <l:@L> "assume" <expr:Expr> <r:@R> => StmtKind::Assume(expr).parsed(l, r),
+    <l:@L> "assert" <expr:Expr> <r:@R> => StmtKind::Assert(expr).parsed(l, r),
+    <l:@L> <fun_name:Name> "(" <args:CommaExpr> ")" <r:@R> => StmtKind::MethodCall {
+        name: None,
+        fun_name,
+        args,
+        method: MethodRef::default(),
+    }.parsed(l, r),
+
+    #[precedence(level = "1")] #[assoc(side = "right")]
+    <l:@L> <c1:Stmt> ";" <c2:Stmt> <r:@R> => StmtKind::Seq(Box::new(c1), Box::new(c2)).parsed(l, r),
+}
+
+Invariant: Expr = {
+    "invariant" <Expr>,
+}
+
+Case: Case = {
+    <condition:Expr> "=>" <stmt:Stmt> => Case { condition, stmt }
+}
+
+Cases: Cases = {
+    <l:@L> "{" <mut xs:(<Case> ",")*> <x:Case?> "}" <r:@R> => {
+        if let Some(x) = x { xs.push(x); }
+        Cases {
+            span: Span::from_start_end(l, r),
+            cases: xs,
+        }
+    }
+}
+
+Range: Range = {
+    <from:Expr> ".." <to:Expr> => Range::FromTo(from, to),
+}
+
+Block: Block = {
+    Spanned<("{" <Stmt> "}")> => Block { span: <>.0, stmt: Box::new(<>.1) }
+}
+
+CommaExpr: Vec<Expr> = {
+    <mut xs:(<Expr> ",")*> <x:Expr?> => {
+        if let Some(x) = x { xs.push(x); }
+        xs
+    }
+}
+
+Expr_: Expr = Expr;
+pub Expr: Expr = {
+    #[precedence(level="0")]
+    Spanned<(r#"[-+]?[0-9]+"#)> =>? {
+        let (span, s) = <>;
+        s.parse()
+            .map(|i| Expr::new(span, ExprKind::Num(i)))
+            .map_err(|_| lalrpop_util::ParseError::User {
+                error: CustomError::IntegerTooLarge { span },
+            })
+    },
+    Spanned<"true"> => Expr::new(<>.0, ExprKind::Bool(true)),
+    Spanned<"false"> => Expr::new(<>.0, ExprKind::Bool(false)),
+    Name => Expr::new(<>.span, ExprKind::Ident(<>.ident)),
+    Spanned<("!" <Expr>)> => Expr::parse_prefix(PrefixOp::Not, <>),
+    Spanned<("-" <Expr>)> => Expr::parse_prefix(PrefixOp::Neg, <>),
+    Spanned<(<Name> "(" <CommaExpr> ")")> => Expr::parse_function_call(<>),
+    "(" <Expr> ")" => <>,
+    Spanned<("old" "(" <Name> ")")> => Expr::new(<>.0, ExprKind::Old(<>.1)),
+    Spanned<"result"> => Expr::new(<>.0, ExprKind::Result),
+
+    #[precedence(level="3")] #[assoc(side="left")]
+    Spanned<(<Expr> "*" <Expr>)> => Expr::parse_op(Op::Mul, <>),
+    Spanned<(<Expr> "/" <Expr>)> => Expr::parse_op(Op::Div, <>),
+    Spanned<(<Expr> "%" <Expr>)> => Expr::parse_op(Op::Mod, <>),
+
+    #[precedence(level="4")] #[assoc(side="left")]
+    Spanned<(<Expr> "+" <Expr>)> => Expr::parse_op(Op::Add, <>),
+    Spanned<(<Expr> "-" <Expr>)> => Expr::parse_op(Op::Sub, <>),
+
+    #[precedence(level="5")] #[assoc(side="left")]
+    Spanned<(<Expr> "<<" <Expr>)> => Expr::parse_op(Op::Lsh, <>),
+    Spanned<(<Expr> ">>" <Expr>)> => Expr::parse_op(Op::Rsh, <>),
+
+    #[precedence(level="6")] #[assoc(side="left")]
+    Spanned<(<Expr> "<"  <Expr>)> => Expr::parse_op(Op::Lt, <>),
+    Spanned<(<Expr> "<=" <Expr>)> => Expr::parse_op(Op::Le, <>),
+    Spanned<(<Expr> ">"  <Expr>)> => Expr::parse_op(Op::Gt, <>),
+    Spanned<(<Expr> ">=" <Expr>)> => Expr::parse_op(Op::Ge, <>),
+
+    #[precedence(level="7")] #[assoc(side="left")]
+    Spanned<(<Expr> "==" <Expr>)> => Expr::parse_op(Op::Eq, <>),
+    Spanned<(<Expr> "!=" <Expr>)> => Expr::parse_op(Op::Ne, <>),
+
+    #[precedence(level="11")] #[assoc(side="left")]
+    Spanned<(<Expr> "&&" <Expr>)> => Expr::parse_op(Op::And, <>),
+
+    #[precedence(level="12")] #[assoc(side="left")]
+    Spanned<(<Expr> "||" <Expr>)> => Expr::parse_op(Op::Or, <>),
+
+    #[precedence(level="13")] #[assoc(side="left")]
+    Spanned<(<Expr> "==>" <Expr>)> => Expr::parse_op(Op::Imp, <>),
+
+    #[precedence(level="14")] #[assoc(side="right")]
+    Spanned<(<Expr> "?" <Expr> ":" <Expr>)> => Expr::parse_ite(<>),
+
+    #[precedence(level="15")] #[assoc(side="right")]
+    Spanned<("forall" <Args> "::" <Expr>)> => Expr::parse_quantifier(Quantifier::Forall, <>),
+    Spanned<("exists" <Args> "::" <Expr>)> => Expr::parse_quantifier(Quantifier::Exists, <>),
+};
+
+Type: Type = {
+    "Int" => Type::Int,
+    "Bool" => Type::Bool,
+    <name:Name> => Type::Unknown { <> },
+}

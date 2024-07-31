@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "codicon";
+  font-display: block;
+  src: url(lib/monaco/codicon.ttf) format("truetype");
+}
+
+body {
+  background: #2d2d2d;
+}
+
+#status-bar {
+  @apply transition duration-500;
+}
