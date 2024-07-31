@@ -13,12 +13,19 @@ use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use slang::{Position, SourceFile, Span};
 use tapi::endpoints::RouterExt;
-use tower_http::services::ServeFile;
 use tracing_subscriber::prelude::*;
 
 pub type Result<T, E = color_eyre::eyre::Error> = std::result::Result<T, E>;
 
 pub use color_eyre::eyre::{bail, eyre};
+
+pub mod prelude {
+    pub use super::Result;
+    pub use color_eyre::eyre::{bail, eyre};
+    pub use slang;
+    pub use smtlib::{self, prelude::*};
+    pub use tracing;
+}
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
@@ -146,8 +153,9 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) {
 
     let app = Router::new()
         .nest("/api", Router::new().tapis(endpoints.into_iter()))
+        .route("/", get(index_handler))
+        .route("/index.html", get(index_handler))
         .route("/*file", get(static_handler))
-        .fallback_service(ServeFile::new("static/index.html"))
         .with_state(AppState { hook });
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -171,6 +179,10 @@ fn populate_js_client(endpoints: &tapi::endpoints::Endpoints<AppState>) -> bool 
     } else {
         false
     }
+}
+
+async fn index_handler() -> impl IntoResponse {
+    static_handler("/index.html".parse::<Uri>().unwrap()).await
 }
 
 async fn static_handler(uri: Uri) -> impl IntoResponse {

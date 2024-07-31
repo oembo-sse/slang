@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "examples/*"]
 
 [workspace.dependencies]
 slang = { path = "crates/slang" }
+slang-ui = { path = "crates/slang-ui" }

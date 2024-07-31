@@ -3,7 +3,7 @@ download-monaco:
     mkdir -p static/lib/monaco
     curl https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.50.0.tgz | tar zx -C static/lib
     grep -v 'src: url(\./codicon\.ttf) format("truetype");' static/lib/package/esm/vs/base/browser/ui/codicons/codicon/codicon.css > static/lib/package/tmp; mv static/lib/package/tmp static/lib/package/esm/vs/base/browser/ui/codicons/codicon/codicon.css
-    esbuild static/lib/package/esm/vs/editor/edcore.main.js --bundle --format=esm --outdir=static/lib/monaco --minify
+    npx esbuild static/lib/package/esm/vs/editor/edcore.main.js --bundle --format=esm --outdir=static/lib/monaco --minify
     mv static/lib/monaco/edcore.main.css static/lib/monaco/editor.api.css
     mv static/lib/monaco/edcore.main.js static/lib/monaco/editor.api.js
     cp static/lib/package/esm/vs/base/browser/ui/codicons/codicon/codicon.ttf static/lib/monaco/

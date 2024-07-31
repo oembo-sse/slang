@@ -1,0 +1,8 @@
+[package]
+name = "complex"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slang-ui.workspace = true
+tokio = "1.39.2"
