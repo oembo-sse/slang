@@ -1,9 +1,10 @@
 #![warn(clippy::todo)]
 
 pub mod ast;
-pub mod expr_ext;
+mod expr_ext;
 mod parse;
 mod span;
+mod stmt_ext;
 pub mod tc;
 
 use std::sync::{Arc, RwLock};
