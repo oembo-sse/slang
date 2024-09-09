@@ -203,6 +203,7 @@ impl Expr {
                 .cow_up()
                 .map(|args| Expr::call(fun_name.clone(), args, function.clone())),
             ExprKind::Error => None,
+            ExprKind::Broke => None,
         }
     }
     pub fn post_order_map(&self, mut f: impl FnMut(&Expr) -> Option<Expr>) -> Expr {
@@ -246,6 +247,7 @@ impl Expr {
                 .cow_up()
                 .map(|args| Expr::call(fun_name.clone(), args, function.clone())),
             ExprKind::Error => None,
+            ExprKind::Broke => None,
         };
 
         match changed_inner {
@@ -327,6 +329,7 @@ impl std::fmt::Display for Expr {
                 write!(f, "{fun_name}({})", args.iter().format(", "))
             }
             ExprKind::Error => write!(f, "error"),
+            ExprKind::Broke => write!(f, "broke"),
         }
     }
 }

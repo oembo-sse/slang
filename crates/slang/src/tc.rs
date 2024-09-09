@@ -5,9 +5,7 @@ use itertools::Itertools;
 
 use crate::{
     ast::{
-        Block, Case, Cases, Domain, DomainAxiom, DomainItem, DomainRef, Expr, ExprKind, File,
-        Function, FunctionRef, Global, Ident, Item, Method, MethodRef, Name, Op, PrefixOp, Range,
-        Specification, Stmt, StmtKind, Type, Var,
+        Block, Case, Cases, Domain, DomainAxiom, DomainItem, DomainRef, Expr, ExprKind, File, Function, FunctionRef, Global, Ident, Item, LoopSpecification, Method, MethodRef, Name, Op, PrefixOp, Range, Specification, Stmt, StmtKind, Type, Var
     },
     Items, Span,
 };
@@ -295,6 +293,16 @@ impl<'a> BlockContext<'a> {
             true
         }
     }
+    fn expect_single(&mut self, spans: Vec<Span>) -> bool {
+        if spans.len() > 1 {
+            let mut spans = spans;
+            spans.reverse();
+            self.error(spans[0], format!("expected a single instance, found multiple"));
+            false
+        } else {
+            true
+        }
+    }
 
     fn expect_to_be(&mut self, span: Span, expected: &Type, actual: &Type) -> bool {
         if !self.are_equal(expected, actual) {
@@ -493,6 +501,11 @@ impl Expr {
                     ..self
                 }
             }),
+            ExprKind::Broke => Expr {
+                ty: Type::Bool,
+                kind: ExprKind::Broke,
+                ..self
+            },
         }
     }
 }
@@ -596,31 +609,31 @@ impl Stmt {
                     ..self
                 }
             }
-            StmtKind::Loop { invariants, body } => {
-                let invariants = invariants.into_iter().map(|inv| inv.tc(cx)).collect();
+            StmtKind::Loop { specifications, body } => {
+                let specifications = tc_loopspecifications(cx, specifications);
                 let body = cx.in_loop(|cx| body.tc(cx));
                 Stmt {
-                    kind: StmtKind::Loop { invariants, body },
+                    kind: StmtKind::Loop { specifications, body },
                     ..self
                 }
             }
             StmtKind::For {
                 name,
                 range,
-                invariants,
+                specifications,
                 body,
             } => cx.nest(|cx| {
                 let range = range.tc(cx);
 
                 cx.register(name.clone(), range.elem_ty());
 
-                let invariants = invariants.into_iter().map(|inv| inv.tc(cx)).collect();
+                let specifications = tc_loopspecifications(cx, specifications);
                 let body = cx.in_loop(|cx| body.tc(cx));
                 Stmt {
                     kind: StmtKind::For {
                         name,
                         range,
-                        invariants,
+                        specifications,
                         body,
                     },
                     ..self
@@ -678,11 +691,11 @@ impl Stmt {
                     ..self
                 }
             }
-            StmtKind::Assert(x) => {
+            StmtKind::Assert(x, msg) => {
                 let x = x.tc(cx);
                 cx.expect_bool(x.span, &x.ty);
                 Stmt {
-                    kind: StmtKind::Assert(x),
+                    kind: StmtKind::Assert(x, msg),
                     ..self
                 }
             }
@@ -796,6 +809,12 @@ fn tc_specifications(
     cx: &mut BlockContext,
     specifications: Vec<Specification>,
 ) -> Vec<Specification> {
+    cx.expect_single(specifications.clone()
+        .into_iter()
+        .filter_map(|spec| match spec {
+            Specification::Decreases { span, .. } => Some(span),
+            _ => None})
+        .collect());
     specifications
         .into_iter()
         .map(|spec| match spec {
@@ -809,11 +828,46 @@ fn tc_specifications(
                 cx.expect_bool(expr.span, &expr.ty);
                 Specification::Ensures { span, expr }
             }
-            Specification::Modifies { span, name } => {
-                if !cx.file.globals.iter().any(|(g, _)| g.ident == name.ident) {
-                    cx.error(name.span, format!("no global named `{name}` exists"));
+            Specification::Modifies { span, name, ty } => {
+                match cx.file.globals.iter().find(|(g, _)| g.ident == name.ident) {
+                    Some((_, t)) => Specification::Modifies { span, name, ty: t.1.clone() },
+                    None => {
+                        cx.error(name.span, format!("no global named `{name}` exists"));
+                        Specification::Modifies { span, name, ty }
+                    }
                 }
-                Specification::Modifies { span, name }
+            }
+            Specification::Decreases { span, expr } => {
+                let expr = expr.tc(cx);
+                cx.expect_int(expr.span, &expr.ty);
+                Specification::Decreases { span, expr }
+            }
+        })
+        .collect()
+}
+
+fn tc_loopspecifications(
+    cx: &mut BlockContext,
+    specifications: Vec<LoopSpecification>,
+) -> Vec<LoopSpecification> {
+    cx.expect_single(specifications.clone()
+        .into_iter()
+        .filter_map(|spec| match spec {
+            LoopSpecification::Decreases { span, .. } => Some(span),
+            _ => None})
+        .collect());
+    specifications
+        .into_iter()
+        .map(|spec| match spec {
+            LoopSpecification::Invariant { span, expr } => {
+                let expr = expr.tc(cx);
+                cx.expect_bool(expr.span, &expr.ty);
+                LoopSpecification::Invariant { span, expr }
+            }
+            LoopSpecification::Decreases { span, expr } => {
+                let expr = expr.tc(cx);
+                cx.expect_int(expr.span, &expr.ty);
+                LoopSpecification::Decreases { span, expr }
             }
         })
         .collect()
@@ -848,7 +902,8 @@ impl Function {
         }
         block_cx.mark_def_end();
         let body = self.body.map(|body| body.tc(&mut block_cx));
-        Function { body, ..self }
+        let specifications = tc_specifications(&mut block_cx, self.specifications);
+        Function { body, specifications, ..self }
     }
 }
 

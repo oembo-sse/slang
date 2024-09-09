@@ -24,24 +24,24 @@ impl StmtKind {
             }
             StmtKind::Assignment { name, expr } => name.span.union(expr.span),
             StmtKind::Match { body } => body.span,
-            StmtKind::Loop { invariants, body } => invariants
+            StmtKind::Loop { specifications, body } => specifications
                 .iter()
-                .map(|inv| inv.span)
+                .map(|spec| spec.span())
                 .fold(body.span, Span::union),
             StmtKind::For {
                 name,
                 range: _,
-                invariants,
+                specifications,
                 body,
-            } => invariants
+            } => specifications
                 .iter()
-                .map(|inv| inv.span)
+                .map(|spec| spec.span())
                 .fold(name.span.union(body.span), Span::union),
             StmtKind::Break => return None,
             StmtKind::Continue => return None,
             StmtKind::Return { expr } => return expr.as_ref().map(|e| e.span),
             StmtKind::Assume(e) => e.span,
-            StmtKind::Assert(e) => e.span,
+            StmtKind::Assert(e, _) => e.span,
             StmtKind::Seq(c1, c2) => c1.span.union(c2.span),
             StmtKind::MethodCall {
                 name,

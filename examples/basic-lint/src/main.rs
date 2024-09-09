@@ -24,7 +24,7 @@ fn assert_true_lint(cx: &mut slang_ui::Context, stmt: &Stmt) {
             assert_true_lint(cx, c1);
             assert_true_lint(cx, c2);
         }
-        StmtKind::Assert(x) => {
+        StmtKind::Assert(x, _) => {
             if let ExprKind::Bool(true) = &x.kind {
                 cx.info(x.span, "asserting true is a bit silly, no?".to_string());
             }
