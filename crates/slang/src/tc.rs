@@ -5,7 +5,9 @@ use itertools::Itertools;
 
 use crate::{
     ast::{
-        Block, Case, Cases, Domain, DomainAxiom, DomainItem, DomainRef, Expr, ExprKind, File, Function, FunctionRef, Global, Ident, Item, LoopSpecification, Method, MethodRef, Name, Op, PrefixOp, Range, Specification, Stmt, StmtKind, Type, Var
+        Block, Case, Cases, Domain, DomainAxiom, DomainItem, DomainRef, Expr, ExprKind, File,
+        Function, FunctionRef, Global, Ident, Item, LoopSpecification, Method, MethodRef, Name, Op,
+        PrefixOp, Range, Specification, Stmt, StmtKind, Type, Var,
     },
     Items, Span,
 };
@@ -297,7 +299,10 @@ impl<'a> BlockContext<'a> {
         if spans.len() > 1 {
             let mut spans = spans;
             spans.reverse();
-            self.error(spans[0], format!("expected a single instance, found multiple"));
+            self.error(
+                spans[0],
+                format!("expected a single instance, found multiple"),
+            );
             false
         } else {
             true
@@ -609,11 +614,17 @@ impl Stmt {
                     ..self
                 }
             }
-            StmtKind::Loop { specifications, body } => {
+            StmtKind::Loop {
+                specifications,
+                body,
+            } => {
                 let specifications = tc_loopspecifications(cx, specifications);
                 let body = cx.in_loop(|cx| body.tc(cx));
                 Stmt {
-                    kind: StmtKind::Loop { specifications, body },
+                    kind: StmtKind::Loop {
+                        specifications,
+                        body,
+                    },
                     ..self
                 }
             }
@@ -809,12 +820,16 @@ fn tc_specifications(
     cx: &mut BlockContext,
     specifications: Vec<Specification>,
 ) -> Vec<Specification> {
-    cx.expect_single(specifications.clone()
-        .into_iter()
-        .filter_map(|spec| match spec {
-            Specification::Decreases { span, .. } => Some(span),
-            _ => None})
-        .collect());
+    cx.expect_single(
+        specifications
+            .clone()
+            .into_iter()
+            .filter_map(|spec| match spec {
+                Specification::Decreases { span, .. } => Some(span),
+                _ => None,
+            })
+            .collect(),
+    );
     specifications
         .into_iter()
         .map(|spec| match spec {
@@ -830,7 +845,11 @@ fn tc_specifications(
             }
             Specification::Modifies { span, name, ty } => {
                 match cx.file.globals.iter().find(|(g, _)| g.ident == name.ident) {
-                    Some((_, t)) => Specification::Modifies { span, name, ty: t.1.clone() },
+                    Some((_, t)) => Specification::Modifies {
+                        span,
+                        name,
+                        ty: t.1.clone(),
+                    },
                     None => {
                         cx.error(name.span, format!("no global named `{name}` exists"));
                         Specification::Modifies { span, name, ty }
@@ -850,12 +869,16 @@ fn tc_loopspecifications(
     cx: &mut BlockContext,
     specifications: Vec<LoopSpecification>,
 ) -> Vec<LoopSpecification> {
-    cx.expect_single(specifications.clone()
-        .into_iter()
-        .filter_map(|spec| match spec {
-            LoopSpecification::Decreases { span, .. } => Some(span),
-            _ => None})
-        .collect());
+    cx.expect_single(
+        specifications
+            .clone()
+            .into_iter()
+            .filter_map(|spec| match spec {
+                LoopSpecification::Decreases { span, .. } => Some(span),
+                _ => None,
+            })
+            .collect(),
+    );
     specifications
         .into_iter()
         .map(|spec| match spec {
@@ -903,7 +926,11 @@ impl Function {
         block_cx.mark_def_end();
         let body = self.body.map(|body| body.tc(&mut block_cx));
         let specifications = tc_specifications(&mut block_cx, self.specifications);
-        Function { body, specifications, ..self }
+        Function {
+            body,
+            specifications,
+            ..self
+        }
     }
 }
 

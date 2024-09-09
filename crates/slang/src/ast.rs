@@ -279,7 +279,6 @@ pub struct Block {
     pub stmt: Box<Stmt>,
 }
 
-
 #[derive(Debug, Clone)]
 pub enum Specification {
     Requires { span: Span, expr: Expr },

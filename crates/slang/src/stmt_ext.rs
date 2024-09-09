@@ -24,7 +24,10 @@ impl StmtKind {
             }
             StmtKind::Assignment { name, expr } => name.span.union(expr.span),
             StmtKind::Match { body } => body.span,
-            StmtKind::Loop { specifications, body } => specifications
+            StmtKind::Loop {
+                specifications,
+                body,
+            } => specifications
                 .iter()
                 .map(|spec| spec.span())
                 .fold(body.span, Span::union),
