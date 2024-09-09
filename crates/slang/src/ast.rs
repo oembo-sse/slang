@@ -37,11 +37,17 @@ impl Name {
     }
 
     pub fn prefix(&self, pre: String) -> Name {
-        Name { ident: self.ident.prefix(pre), ..self.clone() }
+        Name {
+            ident: self.ident.prefix(pre),
+            ..self.clone()
+        }
     }
 
     pub fn postfix(&self, post: String) -> Name {
-        Name { ident: self.ident.postfix(post), ..self.clone() }
+        Name {
+            ident: self.ident.postfix(post),
+            ..self.clone()
+        }
     }
 }
 
