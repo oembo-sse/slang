@@ -192,13 +192,17 @@ fn wp(cx: &slang_ui::Context, stmt: &Stmt, q: Expr) -> Expr {
             .reduce(|a, b| a & b)
             .unwrap_or(Expr::bool(true)),
         // TODO: this is not entirely correct
-        StmtKind::Loop { specifications, body } => {
+        StmtKind::Loop {
+            specifications,
+            body,
+        } => {
             let invariants = specifications
                 .iter()
                 .filter_map(|spec| match spec {
-                    LoopSpecification::Invariant { expr, ..  } => Some(expr.clone()),
+                    LoopSpecification::Invariant { expr, .. } => Some(expr.clone()),
                     _ => None,
-                }).collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
             let inv_conj = invariants
                 .iter()
                 .cloned()
