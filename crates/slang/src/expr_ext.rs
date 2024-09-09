@@ -98,7 +98,7 @@ impl Expr {
         Expr {
             span: Span::default(),
             kind: ExprKind::Num(value),
-            ty: Type::Bool,
+            ty: Type::Int,
         }
     }
     pub fn bool(value: bool) -> Expr {
@@ -106,6 +106,13 @@ impl Expr {
             span: Span::default(),
             kind: ExprKind::Bool(value),
             ty: Type::Bool,
+        }
+    }
+    pub fn ide(ide: Ident, ty: &Type) -> Expr {
+        Expr {
+            span: Span::default(),
+            ty: ty.clone(),
+            kind: ExprKind::Ident(ide),
         }
     }
     pub fn imp(&self, other: &Expr) -> Expr {
@@ -306,6 +313,9 @@ impl Expr {
     }
     pub fn is_result(&self) -> bool {
         matches!(&self.kind, ExprKind::Result)
+    }
+    pub fn is_ident(&self, i: &Ident) -> bool {
+        matches!(&self.kind, ExprKind::Ident(x) if x == i)
     }
 }
 

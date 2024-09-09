@@ -9,6 +9,14 @@ impl Ident {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    pub fn prefix(&self, pre: String) -> Ident {
+        Ident(pre + "_" + self.as_str())
+    }
+
+    pub fn postfix(&self, post: String) -> Ident {
+        Ident(self.to_string() + "_" + &post)
+    }
 }
 
 impl std::fmt::Display for Ident {
@@ -26,6 +34,14 @@ pub struct Name {
 impl Name {
     pub fn as_str(&self) -> &str {
         self.ident.as_str()
+    }
+
+    pub fn prefix(&self, pre: String) -> Name {
+        Name { ident: self.ident.prefix(pre), ..self.clone() }
+    }
+
+    pub fn postfix(&self, post: String) -> Name {
+        Name { ident: self.ident.postfix(post), ..self.clone() }
     }
 }
 

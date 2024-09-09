@@ -2,6 +2,8 @@
 
 pub mod ast;
 mod expr_ext;
+pub mod ivl0;
+mod ivl0_ext;
 mod parse;
 mod span;
 mod stmt_ext;
