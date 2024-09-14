@@ -6,8 +6,8 @@ use itertools::Itertools;
 use crate::{
     ast::{
         Block, Case, Cases, Domain, DomainAxiom, DomainItem, DomainRef, Expr, ExprKind, File,
-        Function, FunctionRef, Global, Ident, Item, LoopSpecification, Method, MethodRef, Name, Op,
-        PrefixOp, Range, Specification, Stmt, StmtKind, Type, Var,
+        Function, FunctionRef, Global, Ident, Item, Method, MethodRef, Name, Op, PrefixOp, Range,
+        Specification, Stmt, StmtKind, Type, Var,
     },
     Items, Span,
 };
@@ -290,19 +290,6 @@ impl<'a> BlockContext<'a> {
         }
         if ty != &Type::Bool {
             self.error(span, format!("expected `{}`, found `{ty}`", Type::Bool));
-            false
-        } else {
-            true
-        }
-    }
-    fn expect_single(&mut self, spans: Vec<Span>) -> bool {
-        if spans.len() > 1 {
-            let mut spans = spans;
-            spans.reverse();
-            self.error(
-                spans[0],
-                format!("expected a single instance, found multiple"),
-            );
             false
         } else {
             true
@@ -615,14 +602,29 @@ impl Stmt {
                 }
             }
             StmtKind::Loop {
-                specifications,
+                invariants,
+                variant,
                 body,
             } => {
-                let specifications = tc_loopspecifications(cx, specifications);
+                let variant = variant.map(|expr| {
+                    let expr = expr.tc(cx);
+                    cx.expect_int(expr.span, &expr.ty);
+                    expr
+                });
+                let invariants = invariants
+                    .iter()
+                    .cloned()
+                    .map(|expr| {
+                        let expr = expr.tc(cx);
+                        cx.expect_bool(expr.span, &expr.ty);
+                        expr
+                    })
+                    .collect();
                 let body = cx.in_loop(|cx| body.tc(cx));
                 Stmt {
                     kind: StmtKind::Loop {
-                        specifications,
+                        invariants,
+                        variant,
                         body,
                     },
                     ..self
@@ -631,20 +633,34 @@ impl Stmt {
             StmtKind::For {
                 name,
                 range,
-                specifications,
+                invariants,
+                variant,
                 body,
             } => cx.nest(|cx| {
                 let range = range.tc(cx);
-
                 cx.register(name.clone(), range.elem_ty());
 
-                let specifications = tc_loopspecifications(cx, specifications);
+                let variant = variant.map(|expr| {
+                    let expr = expr.tc(cx);
+                    cx.expect_int(expr.span, &expr.ty);
+                    expr
+                });
+                let invariants = invariants
+                    .iter()
+                    .cloned()
+                    .map(|expr| {
+                        let expr = expr.tc(cx);
+                        cx.expect_bool(expr.span, &expr.ty);
+                        expr
+                    })
+                    .collect();
                 let body = cx.in_loop(|cx| body.tc(cx));
                 Stmt {
                     kind: StmtKind::For {
                         name,
                         range,
-                        specifications,
+                        invariants,
+                        variant,
                         body,
                     },
                     ..self
@@ -694,19 +710,20 @@ impl Stmt {
                 }
             }
 
-            StmtKind::Assume(x) => {
-                let x = x.tc(cx);
-                cx.expect_bool(x.span, &x.ty);
+            StmtKind::Assume { condition } => {
+                let condition = condition.tc(cx);
+                cx.expect_bool(condition.span, &condition.ty);
                 Stmt {
-                    kind: StmtKind::Assume(x),
+                    kind: StmtKind::Assume { condition },
                     ..self
                 }
             }
-            StmtKind::Assert(x, msg) => {
-                let x = x.tc(cx);
-                cx.expect_bool(x.span, &x.ty);
+
+            StmtKind::Assert { condition, message } => {
+                let condition = condition.tc(cx);
+                cx.expect_bool(condition.span, &condition.ty);
                 Stmt {
-                    kind: StmtKind::Assert(x, msg),
+                    kind: StmtKind::Assert { condition, message },
                     ..self
                 }
             }
@@ -820,16 +837,6 @@ fn tc_specifications(
     cx: &mut BlockContext,
     specifications: Vec<Specification>,
 ) -> Vec<Specification> {
-    cx.expect_single(
-        specifications
-            .clone()
-            .into_iter()
-            .filter_map(|spec| match spec {
-                Specification::Decreases { span, .. } => Some(span),
-                _ => None,
-            })
-            .collect(),
-    );
     specifications
         .into_iter()
         .map(|spec| match spec {
@@ -856,42 +863,6 @@ fn tc_specifications(
                     }
                 }
             }
-            Specification::Decreases { span, expr } => {
-                let expr = expr.tc(cx);
-                cx.expect_int(expr.span, &expr.ty);
-                Specification::Decreases { span, expr }
-            }
-        })
-        .collect()
-}
-
-fn tc_loopspecifications(
-    cx: &mut BlockContext,
-    specifications: Vec<LoopSpecification>,
-) -> Vec<LoopSpecification> {
-    cx.expect_single(
-        specifications
-            .clone()
-            .into_iter()
-            .filter_map(|spec| match spec {
-                LoopSpecification::Decreases { span, .. } => Some(span),
-                _ => None,
-            })
-            .collect(),
-    );
-    specifications
-        .into_iter()
-        .map(|spec| match spec {
-            LoopSpecification::Invariant { span, expr } => {
-                let expr = expr.tc(cx);
-                cx.expect_bool(expr.span, &expr.ty);
-                LoopSpecification::Invariant { span, expr }
-            }
-            LoopSpecification::Decreases { span, expr } => {
-                let expr = expr.tc(cx);
-                cx.expect_int(expr.span, &expr.ty);
-                LoopSpecification::Decreases { span, expr }
-            }
         })
         .collect()
 }
@@ -906,10 +877,16 @@ impl Method {
         }
         block_cx.mark_def_end();
         let specifications = tc_specifications(&mut block_cx, self.specifications);
-        let body = self.body.tc(&mut block_cx);
+        let variant = self.variant.map(|expr| {
+            let expr = expr.tc(&mut block_cx);
+            block_cx.expect_int(expr.span, &expr.ty);
+            expr
+        });
+        let body = self.body.map(|body| body.tc(&mut block_cx));
         Method {
             body,
             specifications,
+            variant,
             ..self
         }
     }

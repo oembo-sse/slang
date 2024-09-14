@@ -40,19 +40,19 @@ Specification: Specification = {
     Spanned<("requires" <Expr>)> => Specification::Requires { span: <>.0, expr: <>.1 },
     Spanned<("ensures" <Expr>)> => Specification::Ensures { span: <>.0, expr: <>.1 },
     Spanned<("modifies" <Name>)> => Specification::Modifies { span: <>.0, name: <>.1, ty: Type::Unresolved },
-    Spanned<("decreases" <Expr>)> => Specification::Decreases { span: <>.0, expr: <>.1 },
 }
 
 Specifications: Vec<Specification> = Specification*;
 
 pub Method: Method = {
-    <l:@L> "method" <name:Name> "(" <args:Args> ")" <return_ty:(":" <Spanned<Type>>)?> <specifications:Specifications> <body:Block> <r:@R> =>
+    <l:@L> "method" <name:Name> "(" <args:Args> ")" <return_ty:(":" <Spanned<Type>>)?> <specifications:Specifications> <variant: Variant?> <body:Block?> <r:@R> =>
         Method {
             span: Span::from_start_end(l, r),
             name,
             args,
             return_ty,
             specifications,
+            variant,
             body,
         },
 }
@@ -126,17 +126,16 @@ pub Stmt: Stmt = {
 
     <l:@L> "match" <body:Cases> <r:@R> =>
         StmtKind::Match { body }.parsed(l, r),
-    <l:@L> "loop" <specifications:LoopSpecifications> <body:Cases> <r:@R> =>
-        StmtKind::Loop { specifications, body }.parsed(l, r),
-    <l:@L> "for" <name:Name> "in" <range:Range> <specifications:LoopSpecifications> <body:Block> <r:@R> =>
-        StmtKind::For { name, range, specifications, body }.parsed(l, r),
-
+    <l:@L> "loop" <invariants:Invariant*> <variant:Variant?> <body:Cases> <r:@R> =>
+        StmtKind::Loop { invariants, variant, body }.parsed(l, r),
+    <l:@L> "for" <name:Name> "in" <range:Range> <invariants:Invariant*> <variant:Variant?> <body:Block> <r:@R> =>
+            StmtKind::For { name, range, invariants, variant, body }.parsed(l, r),
     <l:@L> "break" <r:@R> => StmtKind::Break.parsed(l, r),
     <l:@L> "continue" <r:@R> => StmtKind::Continue.parsed(l, r),
     <l:@L> "return" <expr:Expr?> <r:@R> => StmtKind::Return { expr }.parsed(l, r),
 
-    <l:@L> "assume" <expr:Expr> <r:@R> => StmtKind::Assume(expr).parsed(l, r),
-    <l:@L> "assert" <expr:Expr> <r:@R> => StmtKind::Assert(expr, "Assertion might fail".to_owned()).parsed(l, r),
+    <l:@L> "assume" <condition:Expr> <r:@R> => StmtKind::Assume { condition }.parsed(l, r),
+    <l:@L> "assert" <condition:Expr> <r:@R> => StmtKind::Assert { condition, message: "Assertion might fail".to_owned() }.parsed(l, r),
     <l:@L> <fun_name:Name> "(" <args:CommaExpr> ")" <r:@R> => StmtKind::MethodCall {
         name: None,
         fun_name,
@@ -148,12 +147,13 @@ pub Stmt: Stmt = {
     <l:@L> <c1:Stmt> ";" <c2:Stmt> <r:@R> => StmtKind::Seq(Box::new(c1), Box::new(c2)).parsed(l, r),
 }
 
-LoopSpecification: LoopSpecification = {
-    Spanned<("invariant" <Expr>)> => LoopSpecification::Invariant { span: <>.0, expr: <>.1 },
-    Spanned<("decreases" <Expr>)> => LoopSpecification::Decreases { span: <>.0, expr: <>.1 },
+Invariant: Expr = {
+    "invariant" <Expr>,
 }
 
-LoopSpecifications: Vec<LoopSpecification> = LoopSpecification*;
+Variant: Expr = {
+    "decreases" <Expr>,
+}
 
 Case: Case = {
     <condition:Expr> "=>" <stmt:Stmt> => Case { condition, stmt }

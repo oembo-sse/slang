@@ -42,6 +42,7 @@ pub struct Var {
     pub ty: (Span, Type),
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub span: Span,
@@ -49,6 +50,7 @@ pub struct Expr {
     pub ty: Type,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Bool(bool),
@@ -191,27 +193,14 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum LoopSpecification {
-    Invariant { span: Span, expr: Expr },
-    Decreases { span: Span, expr: Expr },
-}
-
-impl LoopSpecification {
-    pub fn span(&self) -> Span {
-        match self {
-            &LoopSpecification::Invariant { span, .. } => span,
-            &LoopSpecification::Decreases { span, .. } => span,
-        }
-    }
-}
-
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Stmt {
     pub span: Span,
     pub kind: StmtKind,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum StmtKind {
     VarDefinition {
@@ -227,13 +216,15 @@ pub enum StmtKind {
         body: Cases,
     },
     Loop {
-        specifications: Vec<LoopSpecification>,
+        invariants: Vec<Expr>,
+        variant: Option<Expr>,
         body: Cases,
     },
     For {
         name: Name,
         range: Range,
-        specifications: Vec<LoopSpecification>,
+        invariants: Vec<Expr>,
+        variant: Option<Expr>,
         body: Block,
     },
 
@@ -243,8 +234,13 @@ pub enum StmtKind {
         expr: Option<Expr>,
     },
 
-    Assume(Expr),
-    Assert(Expr, String),
+    Assume {
+        condition: Expr,
+    },
+    Assert {
+        condition: Expr,
+        message: String,
+    },
 
     Seq(Box<Stmt>, Box<Stmt>),
 
@@ -284,7 +280,6 @@ pub enum Specification {
     Requires { span: Span, expr: Expr },
     Ensures { span: Span, expr: Expr },
     Modifies { span: Span, name: Name, ty: Type },
-    Decreases { span: Span, expr: Expr },
 }
 
 #[derive(Debug, Clone)]
@@ -294,7 +289,8 @@ pub struct Method {
     pub args: Vec<Var>,
     pub return_ty: Option<(Span, Type)>,
     pub specifications: Vec<Specification>,
-    pub body: Block,
+    pub variant: Option<Expr>,
+    pub body: Option<Block>,
 }
 
 impl Method {
@@ -313,12 +309,6 @@ impl Method {
     pub fn modifies(&self) -> impl Iterator<Item = (&Name, &Type)> {
         self.specifications.iter().filter_map(|s| match s {
             Specification::Modifies { name, ty, .. } => Some((name, ty)),
-            _ => None,
-        })
-    }
-    pub fn decreases(&self) -> Option<&Expr> {
-        self.specifications.iter().find_map(|s| match s {
-            Specification::Decreases { expr, .. } => Some(expr),
             _ => None,
         })
     }
@@ -551,6 +541,7 @@ impl std::fmt::Display for DomainRef {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum Item {
     Method(Method),
