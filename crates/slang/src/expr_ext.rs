@@ -108,7 +108,7 @@ impl Expr {
             ty: Type::Bool,
         }
     }
-    pub fn ide(ide: Ident, ty: &Type) -> Expr {
+    pub fn ident(ide: Ident, ty: &Type) -> Expr {
         Expr {
             span: Span::default(),
             ty: ty.clone(),
@@ -352,6 +352,15 @@ impl std::fmt::Display for Quantifier {
         match self {
             Quantifier::Forall => write!(f, "forall"),
             Quantifier::Exists => write!(f, "exists"),
+        }
+    }
+}
+
+impl Name {
+    pub fn ide(ident: Ident) -> Name {
+        Name {
+            ident,
+            span: Span::default(),
         }
     }
 }

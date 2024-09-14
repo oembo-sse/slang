@@ -10,11 +10,11 @@ impl Ident {
         &self.0
     }
 
-    pub fn prefix(&self, pre: String) -> Ident {
-        Ident(pre + "_" + self.as_str())
+    pub fn prefix(&self, pre: &str) -> Ident {
+        Ident(pre.to_owned() + "_" + self.as_str())
     }
 
-    pub fn postfix(&self, post: String) -> Ident {
+    pub fn postfix(&self, post: &str) -> Ident {
         Ident(self.to_string() + "_" + &post)
     }
 }
@@ -36,14 +36,14 @@ impl Name {
         self.ident.as_str()
     }
 
-    pub fn prefix(&self, pre: String) -> Name {
+    pub fn prefix(&self, pre: &str) -> Name {
         Name {
             ident: self.ident.prefix(pre),
             ..self.clone()
         }
     }
 
-    pub fn postfix(&self, post: String) -> Name {
+    pub fn postfix(&self, post: &str) -> Name {
         Name {
             ident: self.ident.postfix(post),
             ..self.clone()
