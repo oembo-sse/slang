@@ -245,6 +245,13 @@ impl Expr {
             None => f(self),
         }
     }
+
+    pub fn with_span(&self, span: &Span) -> Expr {
+        Expr {
+            span: span.clone(),
+            ..self.clone()
+        }
+    }
 }
 
 trait CowUp {
