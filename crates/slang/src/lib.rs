@@ -3,6 +3,7 @@
 pub mod ast;
 mod expr_ext;
 mod parse;
+pub mod smt;
 mod span;
 mod stmt_ext;
 pub mod tc;
