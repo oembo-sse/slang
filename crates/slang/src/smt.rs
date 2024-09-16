@@ -96,7 +96,6 @@ pub fn smt_expr(expr: &Expr) -> Result<smtlib::terms::Dynamic> {
 
         ExprKind::Error => bail!("smt_expr of error expression"),
         ExprKind::Result => bail!("smt_expr of result expression"),
-        ExprKind::Broke => bail!("smt_expr of broke expression"),
         ExprKind::Old(_) => bail!("smt_expr of old expression"),
     }
 }
