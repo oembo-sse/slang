@@ -9,7 +9,7 @@ pub mod tc;
 
 use std::sync::{Arc, RwLock};
 
-use ast::{Ident, Ref};
+use ast::{DomainRef, FunctionRef, Ident, MethodRef, Ref};
 use indexmap::IndexMap;
 pub use parse::ParseResult;
 pub use span::{Position, Span};
@@ -33,6 +33,16 @@ impl SourceFile {
     }
     pub fn globals(&self) -> Vec<Arc<ast::Global>> {
         self.items.globals()
+    }
+
+    pub fn get_method_ref(&self, ident: Ident) -> MethodRef {
+        MethodRef(self.items.new_ref(ident))
+    }
+    pub fn get_function_ref(&self, ident: Ident) -> FunctionRef {
+        FunctionRef(self.items.new_ref(ident))
+    }
+    pub fn get_domain_ref(&self, ident: Ident) -> DomainRef {
+        DomainRef(self.items.new_ref(ident))
     }
 
     pub fn contains_error(&self) -> bool {
