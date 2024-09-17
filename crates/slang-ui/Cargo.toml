@@ -6,8 +6,10 @@ edition = "2021"
 [dependencies]
 axum = "0.7.5"
 axum-extra = "0.9.3"
+clap = { version = "4.5.17", features = ["derive"] }
 color-eyre = "0.6.3"
 futures-util = "0.3.30"
+miette = { version = "7.2.0", features = ["fancy"] }
 mime_guess = "2.0.5"
 rust-embed = "8.5.0"
 serde = { version = "1.0.204", features = ["derive"] }
@@ -16,6 +18,7 @@ slang.workspace = true
 # smtlib = "0.2.0"
 smtlib = { git = "https://github.com/oeb25/smtlib-rs", version = "0.2.0" }
 tapi = { git = "https://github.com/oeb25/tapi", features = ["endpoints"] }
+thiserror = "1.0.63"
 # tapi = { path = "../../../Checkr/tapi/crates/tapi", version = "0.1.0", features = [
 #     "endpoints",
 # ] }

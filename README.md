@@ -23,5 +23,5 @@ cargo run --bin basic-lint
 cargo run --bin complex
 
 # Or run it with cargo-watch which will recompile on file changes
-cargo watch -cx "--bin complex"
+cargo watch -cx "run --bin complex"
 ```
