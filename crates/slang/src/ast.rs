@@ -35,7 +35,6 @@ impl std::fmt::Display for Name {
     }
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Var {
     pub span: Span,
@@ -60,6 +59,7 @@ pub enum ExprKind {
     Old(Name),
     Prefix(PrefixOp, Box<Expr>),
     Result,
+    Broke,
     Infix(Box<Expr>, Op, Box<Expr>),
     Ite(Box<Expr>, Box<Expr>, Box<Expr>),
     Quantifier(Quantifier, Vec<Var>, Box<Expr>),
@@ -71,7 +71,6 @@ pub enum ExprKind {
     Error,
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Quantifier {
     Forall,
@@ -147,7 +146,6 @@ macro_rules! def_prefix_op {
 
 def_prefix_op!(["-", Neg], ["!", Not],);
 
-#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Unresolved,
@@ -170,7 +168,7 @@ impl std::fmt::Display for Type {
             Type::Unresolved => "unresolved",
             Type::Int => "Int",
             Type::Bool => "Bool",
-            Type::Domain { name, domain } => return domain.fmt(f),
+            Type::Domain { domain, .. } => return domain.fmt(f),
             Type::Unknown { name } => &name.ident.0,
             Type::Error => "error",
         };
@@ -219,12 +217,14 @@ pub enum StmtKind {
     },
     Loop {
         invariants: Vec<Expr>,
+        variant: Option<Expr>,
         body: Cases,
     },
     For {
         name: Name,
         range: Range,
         invariants: Vec<Expr>,
+        variant: Option<Expr>,
         body: Block,
     },
 
@@ -234,8 +234,13 @@ pub enum StmtKind {
         expr: Option<Expr>,
     },
 
-    Assume(Expr),
-    Assert(Expr),
+    Assume {
+        condition: Expr,
+    },
+    Assert {
+        condition: Expr,
+        message: String,
+    },
 
     Seq(Box<Stmt>, Box<Stmt>),
 
@@ -247,42 +252,36 @@ pub enum StmtKind {
     },
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Cases {
     pub span: Span,
     pub cases: Vec<Case>,
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Case {
     pub condition: Expr,
     pub stmt: Stmt,
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum Range {
     FromTo(Expr, Expr),
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Block {
     pub span: Span,
     pub stmt: Box<Stmt>,
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum Specification {
     Requires { span: Span, expr: Expr },
     Ensures { span: Span, expr: Expr },
-    Modifies { span: Span, name: Name },
+    Modifies { span: Span, name: Name, ty: Type },
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Method {
     pub span: Span,
@@ -290,7 +289,8 @@ pub struct Method {
     pub args: Vec<Var>,
     pub return_ty: Option<(Span, Type)>,
     pub specifications: Vec<Specification>,
-    pub body: Block,
+    pub variant: Option<Expr>,
+    pub body: Option<Block>,
 }
 
 impl Method {
@@ -306,9 +306,9 @@ impl Method {
             _ => None,
         })
     }
-    pub fn modifies(&self) -> impl Iterator<Item = &Name> {
+    pub fn modifies(&self) -> impl Iterator<Item = (&Name, &Type)> {
         self.specifications.iter().filter_map(|s| match s {
-            Specification::Modifies { name, .. } => Some(name),
+            Specification::Modifies { name, ty, .. } => Some((name, ty)),
             _ => None,
         })
     }
@@ -386,7 +386,6 @@ impl MethodRef {
     }
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Function {
     pub span: Span,
@@ -441,7 +440,6 @@ impl std::fmt::Debug for FunctionRef {
     }
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Global {
     pub span: Span,
@@ -449,7 +447,6 @@ pub struct Global {
     pub init: Option<Expr>,
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Domain {
     pub span: Span,
@@ -457,7 +454,6 @@ pub struct Domain {
     pub items: Vec<DomainItem>,
 }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum DomainItem {
     Function(Function),
@@ -479,7 +475,6 @@ impl Domain {
     }
 }
 
-// #[non_exhaustive]
 // #[derive(Debug, Clone)]
 // pub struct DomainFunction {
 //     pub span: Span,
@@ -510,7 +505,6 @@ impl Domain {
 //     }
 // }
 
-#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct DomainAxiom {
     pub span: Span,
@@ -556,7 +550,6 @@ pub enum Item {
     Domain(Domain),
 }
 
-#[non_exhaustive]
 pub struct File {
     pub items: Vec<Item>,
 }

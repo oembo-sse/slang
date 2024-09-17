@@ -493,6 +493,11 @@ impl Expr {
                     ..self
                 }
             }),
+            ExprKind::Broke => Expr {
+                ty: Type::Bool,
+                kind: ExprKind::Broke,
+                ..self
+            },
         }
     }
 }
@@ -596,11 +601,32 @@ impl Stmt {
                     ..self
                 }
             }
-            StmtKind::Loop { invariants, body } => {
-                let invariants = invariants.into_iter().map(|inv| inv.tc(cx)).collect();
+            StmtKind::Loop {
+                invariants,
+                variant,
+                body,
+            } => {
+                let variant = variant.map(|expr| {
+                    let expr = expr.tc(cx);
+                    cx.expect_int(expr.span, &expr.ty);
+                    expr
+                });
+                let invariants = invariants
+                    .iter()
+                    .cloned()
+                    .map(|expr| {
+                        let expr = expr.tc(cx);
+                        cx.expect_bool(expr.span, &expr.ty);
+                        expr
+                    })
+                    .collect();
                 let body = cx.in_loop(|cx| body.tc(cx));
                 Stmt {
-                    kind: StmtKind::Loop { invariants, body },
+                    kind: StmtKind::Loop {
+                        invariants,
+                        variant,
+                        body,
+                    },
                     ..self
                 }
             }
@@ -608,19 +634,33 @@ impl Stmt {
                 name,
                 range,
                 invariants,
+                variant,
                 body,
             } => cx.nest(|cx| {
                 let range = range.tc(cx);
-
                 cx.register(name.clone(), range.elem_ty());
 
-                let invariants = invariants.into_iter().map(|inv| inv.tc(cx)).collect();
+                let variant = variant.map(|expr| {
+                    let expr = expr.tc(cx);
+                    cx.expect_int(expr.span, &expr.ty);
+                    expr
+                });
+                let invariants = invariants
+                    .iter()
+                    .cloned()
+                    .map(|expr| {
+                        let expr = expr.tc(cx);
+                        cx.expect_bool(expr.span, &expr.ty);
+                        expr
+                    })
+                    .collect();
                 let body = cx.in_loop(|cx| body.tc(cx));
                 Stmt {
                     kind: StmtKind::For {
                         name,
                         range,
                         invariants,
+                        variant,
                         body,
                     },
                     ..self
@@ -670,19 +710,20 @@ impl Stmt {
                 }
             }
 
-            StmtKind::Assume(x) => {
-                let x = x.tc(cx);
-                cx.expect_bool(x.span, &x.ty);
+            StmtKind::Assume { condition } => {
+                let condition = condition.tc(cx);
+                cx.expect_bool(condition.span, &condition.ty);
                 Stmt {
-                    kind: StmtKind::Assume(x),
+                    kind: StmtKind::Assume { condition },
                     ..self
                 }
             }
-            StmtKind::Assert(x) => {
-                let x = x.tc(cx);
-                cx.expect_bool(x.span, &x.ty);
+
+            StmtKind::Assert { condition, message } => {
+                let condition = condition.tc(cx);
+                cx.expect_bool(condition.span, &condition.ty);
                 Stmt {
-                    kind: StmtKind::Assert(x),
+                    kind: StmtKind::Assert { condition, message },
                     ..self
                 }
             }
@@ -809,11 +850,18 @@ fn tc_specifications(
                 cx.expect_bool(expr.span, &expr.ty);
                 Specification::Ensures { span, expr }
             }
-            Specification::Modifies { span, name } => {
-                if !cx.file.globals.iter().any(|(g, _)| g.ident == name.ident) {
-                    cx.error(name.span, format!("no global named `{name}` exists"));
+            Specification::Modifies { span, name, ty } => {
+                match cx.file.globals.iter().find(|(g, _)| g.ident == name.ident) {
+                    Some((_, t)) => Specification::Modifies {
+                        span,
+                        name,
+                        ty: t.1.clone(),
+                    },
+                    None => {
+                        cx.error(name.span, format!("no global named `{name}` exists"));
+                        Specification::Modifies { span, name, ty }
+                    }
                 }
-                Specification::Modifies { span, name }
             }
         })
         .collect()
@@ -829,10 +877,16 @@ impl Method {
         }
         block_cx.mark_def_end();
         let specifications = tc_specifications(&mut block_cx, self.specifications);
-        let body = self.body.tc(&mut block_cx);
+        let variant = self.variant.map(|expr| {
+            let expr = expr.tc(&mut block_cx);
+            block_cx.expect_int(expr.span, &expr.ty);
+            expr
+        });
+        let body = self.body.map(|body| body.tc(&mut block_cx));
         Method {
             body,
             specifications,
+            variant,
             ..self
         }
     }
@@ -848,7 +902,12 @@ impl Function {
         }
         block_cx.mark_def_end();
         let body = self.body.map(|body| body.tc(&mut block_cx));
-        Function { body, ..self }
+        let specifications = tc_specifications(&mut block_cx, self.specifications);
+        Function {
+            body,
+            specifications,
+            ..self
+        }
     }
 }
 

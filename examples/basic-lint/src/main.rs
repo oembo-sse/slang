@@ -12,7 +12,7 @@ impl slang_ui::Hook for App {
             let span = tracing::info_span!("method", name=%m.name);
             let _enter = span.enter();
 
-            assert_true_lint(cx, &m.body.stmt);
+            m.body.clone().map(|body| assert_true_lint(cx, &body.stmt));
         }
 
         Ok(())
@@ -24,9 +24,12 @@ fn assert_true_lint(cx: &mut slang_ui::Context, stmt: &Stmt) {
             assert_true_lint(cx, c1);
             assert_true_lint(cx, c2);
         }
-        StmtKind::Assert(x) => {
-            if let ExprKind::Bool(true) = &x.kind {
-                cx.info(x.span, "asserting true is a bit silly, no?".to_string());
+        StmtKind::Assert { condition, .. } => {
+            if let ExprKind::Bool(true) = &condition.kind {
+                cx.info(
+                    condition.span,
+                    "asserting true is a bit silly, no?".to_string(),
+                );
             }
         }
         StmtKind::Match { body } | StmtKind::Loop { body, .. } => {
