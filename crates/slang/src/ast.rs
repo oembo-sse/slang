@@ -15,7 +15,7 @@ impl Ident {
     }
 
     pub fn postfix(&self, post: &str) -> Ident {
-        Ident(self.to_string() + "_" + &post)
+        Ident(self.to_string() + "_" + post)
     }
 }
 

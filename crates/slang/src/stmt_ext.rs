@@ -23,35 +23,35 @@ impl Stmt {
             expr: expr.clone(),
         })
     }
-    pub fn _match(cases: &Vec<Case>) -> Stmt {
+    pub fn _match(cases: &[Case]) -> Stmt {
         Stmt::new(StmtKind::Match {
             body: Cases {
                 span: Span::default(),
-                cases: cases.clone(),
+                cases: cases.to_vec(),
             },
         })
     }
-    pub fn _loop(invariants: &Vec<Expr>, variant: Option<Expr>, cases: &Vec<Case>) -> Stmt {
+    pub fn _loop(invariants: &[Expr], variant: Option<Expr>, cases: &[Case]) -> Stmt {
         Stmt::new(StmtKind::Loop {
-            invariants: invariants.clone(),
+            invariants: invariants.to_vec(),
             variant: variant.clone(),
             body: Cases {
                 span: Span::default(),
-                cases: cases.clone(),
+                cases: cases.to_vec(),
             },
         })
     }
     pub fn _for(
         name: &Name,
         range: &Range,
-        invariants: &Vec<Expr>,
+        invariants: &[Expr],
         variant: Option<Expr>,
         body: &Stmt,
     ) -> Stmt {
         Stmt::new(StmtKind::For {
             name: name.clone(),
             range: range.clone(),
-            invariants: invariants.clone(),
+            invariants: invariants.to_vec(),
             variant: variant.clone(),
             body: Block {
                 span: Span::default(),
@@ -85,7 +85,7 @@ impl Stmt {
             Box::new(other.clone()),
         ))
     }
-    pub fn seqs(stmts: &Vec<Stmt>) -> Stmt {
+    pub fn seqs(stmts: &[Stmt]) -> Stmt {
         stmts
             .iter()
             .cloned()
@@ -95,13 +95,13 @@ impl Stmt {
     pub fn methodcall(
         name: &Option<Name>,
         fun_name: &Name,
-        args: &Vec<Expr>,
+        args: &[Expr],
         method: &MethodRef,
     ) -> Stmt {
         Stmt::new(StmtKind::MethodCall {
             name: name.clone(),
             fun_name: fun_name.clone(),
-            args: args.clone(),
+            args: args.to_vec(),
             method: method.clone(),
         })
     }
@@ -124,8 +124,7 @@ impl Stmt {
             StmtKind::Match { body } | StmtKind::Loop { body, .. } => body
                 .cases
                 .iter()
-                .map(|case| case.clone().stmt.assigned_vars())
-                .flatten()
+                .flat_map(|case| case.clone().stmt.assigned_vars())
                 .collect(),
             StmtKind::For { name, body, .. } => {
                 let mut vars = body.clone().stmt.assigned_vars();
