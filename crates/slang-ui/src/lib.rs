@@ -1,6 +1,9 @@
 mod monaco;
 
-use std::sync::{Arc, RwLock};
+use std::{
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
 
 use axum::{
     extract::State,
@@ -9,6 +12,8 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use clap::Parser;
+use color_eyre::eyre::Context as _;
 use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use slang::{Position, SourceFile, Span};
@@ -36,15 +41,26 @@ pub enum Severity {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error, miette::Diagnostic)]
+#[error("{message}")]
 pub struct Report {
     pub severity: Severity,
+    #[label]
     pub span: Span,
     pub message: String,
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, tapi::Tapi)]
+pub enum Color {
+    Red,
+    Green,
+    Blue,
+}
+
 pub struct Context {
     reports: RwLock<Vec<Report>>,
+    message: RwLock<Option<(String, Color)>>,
 }
 
 struct Logger {}
@@ -67,11 +83,15 @@ impl Context {
     fn new(_file: &SourceFile) -> Context {
         Context {
             reports: Default::default(),
+            message: Default::default(),
         }
     }
 
     pub fn solver(&self) -> Result<smtlib::Solver<smtlib::backend::z3_binary::Z3Binary>> {
-        let mut solver = smtlib::Solver::new(smtlib::backend::z3_binary::Z3Binary::new("z3")?)?;
+        let mut solver = smtlib::Solver::new(
+            smtlib::backend::z3_binary::Z3Binary::new("z3")
+                .context("failed to find `z3`. is it installed and in your path?")?,
+        )?;
         solver.set_logger(Logger {});
         solver.set_timeout(2_000)?;
         Ok(solver)
@@ -93,6 +113,10 @@ impl Context {
     }
     pub fn error(&self, span: Span, message: impl std::fmt::Display) {
         self.report(Severity::Error, span, message)
+    }
+
+    pub fn set_message(&self, message: impl std::fmt::Display, color: Color) {
+        *self.message.write().unwrap() = Some((message.to_string(), color))
     }
 
     pub fn reports(&self) -> Vec<Report> {
@@ -144,22 +168,82 @@ pub async fn run(hook: impl Hook + Send + Sync + 'static) {
         }))
         .init();
 
-    run_impl(Arc::new(hook)).await
+    match run_impl(Arc::new(hook)).await {
+        Ok(()) => {}
+        Err(err) => println!("{err:?}"),
+    }
 }
-async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) {
-    let endpoints = endpoints();
 
-    populate_js_client(&endpoints);
+#[derive(clap::Parser)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
 
-    let app = Router::new()
-        .nest("/api", Router::new().tapis(endpoints.into_iter()))
-        .route("/", get(index_handler))
-        .route("/index.html", get(index_handler))
-        .route("/*file", get(static_handler))
-        .with_state(AppState { hook });
+#[derive(clap::Subcommand, Default, Clone)]
+enum Command {
+    #[default]
+    Ui,
+    Check {
+        path: PathBuf,
+    },
+}
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
+    let cli = Cli::parse();
+
+    match cli.command.clone().unwrap_or_default() {
+        Command::Ui => {
+            let endpoints = endpoints();
+
+            populate_js_client(&endpoints);
+
+            let app = Router::new()
+                .nest("/api", Router::new().tapis(endpoints.into_iter()))
+                .route("/", get(index_handler))
+                .route("/index.html", get(index_handler))
+                .route("/*file", get(static_handler))
+                .with_state(AppState { hook });
+
+            let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+            axum::serve(listener, app).await.unwrap();
+
+            Ok(())
+        }
+        Command::Check { path } => {
+            let src = std::fs::read_to_string(&path)
+                .with_context(|| format!("failed to read '{}'", path.display()))?;
+
+            let reports = match run_hook(&*hook, &src) {
+                Ok(reports) => reports,
+                Err((_, error)) => return Err(error),
+            };
+
+            for report in reports {
+                let report = miette::miette!(
+                    labels = vec![miette::LabeledSpan::at(
+                        (report.span.start(), report.span.len()),
+                        &report.message
+                    ),],
+                    severity = match report.severity {
+                        Severity::Info => miette::Severity::Advice,
+                        Severity::Warning => miette::Severity::Warning,
+                        Severity::Error => miette::Severity::Error,
+                    },
+                    "{}",
+                    report.message
+                )
+                .with_source_code(miette::NamedSource::new(
+                    path.display().to_string(),
+                    src.to_string(),
+                ));
+
+                println!("{report:?}");
+            }
+
+            Ok(())
+        }
+    }
 }
 
 /// Write the JavaScript client file if it exists.
@@ -278,6 +362,7 @@ pub struct AnalyzeParams {
 pub struct AnalyzeResult {
     markers: Vec<monaco::MarkerData>,
     analysis_errored: bool,
+    message: Option<(Option<String>, Color)>,
 }
 
 #[tapi::tapi(path = "/analyze", method = Post)]
@@ -305,6 +390,7 @@ async fn analyze(state: State<AppState>, params: Json<AnalyzeParams>) -> Json<An
             })
             .collect(),
         analysis_errored,
+        message: None,
     })
 }
 

@@ -37,6 +37,7 @@ struct MethodSignature {
 
 #[derive(Clone)]
 struct FunctionSignature {
+    #[allow(unused)]
     name: Name,
     args: Vec<Var>,
     return_ty: Type,
