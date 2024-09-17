@@ -33,7 +33,7 @@ pub mod prelude {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Severity {
     Info,
     Warning,
@@ -41,11 +41,9 @@ pub enum Severity {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Clone, thiserror::Error, miette::Diagnostic)]
-#[error("{message}")]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Report {
     pub severity: Severity,
-    #[label]
     pub span: Span,
     pub message: String,
 }
@@ -171,6 +169,39 @@ pub async fn run(hook: impl Hook + Send + Sync + 'static) {
     match run_impl(Arc::new(hook)).await {
         Ok(()) => {}
         Err(err) => println!("{err:?}"),
+    }
+}
+
+pub struct TestResult {
+    reports: Vec<Report>,
+    error: Option<color_eyre::eyre::Error>,
+}
+
+pub fn test(hook: impl Hook + 'static, src: &str) -> TestResult {
+    match run_hook(&hook, src) {
+        Ok(reports) => TestResult {
+            reports,
+            error: None,
+        },
+        Err((reports, error)) => TestResult {
+            reports,
+            error: Some(error),
+        },
+    }
+}
+
+impl TestResult {
+    pub fn has_message(&self, message: &str) -> bool {
+        self.reports.iter().any(|r| r.message == message)
+    }
+    pub fn has_errors(&self) -> bool {
+        self.error.is_some() || self.reports.iter().any(|r| r.severity == Severity::Error)
+    }
+    pub fn error(&self) -> Option<&color_eyre::eyre::Error> {
+        self.error.as_ref()
+    }
+    pub fn reports(&self) -> Vec<Report> {
+        self.reports.clone()
     }
 }
 
