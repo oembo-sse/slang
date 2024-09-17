@@ -217,14 +217,14 @@ impl Expr {
 
 #[non_exhaustive]
 #[derive(Debug, Clone)]
-pub struct Stmt {
+pub struct Cmd {
     pub span: Span,
-    pub kind: StmtKind,
+    pub kind: CmdKind,
 }
 
 #[non_exhaustive]
 #[derive(Debug, Clone)]
-pub enum StmtKind {
+pub enum CmdKind {
     VarDefinition {
         name: Name,
         ty: (Span, Type),
@@ -264,7 +264,7 @@ pub enum StmtKind {
         message: String,
     },
 
-    Seq(Box<Stmt>, Box<Stmt>),
+    Seq(Box<Cmd>, Box<Cmd>),
 
     MethodCall {
         name: Option<Name>,
@@ -283,7 +283,7 @@ pub struct Cases {
 #[derive(Debug, Clone)]
 pub struct Case {
     pub condition: Expr,
-    pub stmt: Stmt,
+    pub cmd: Cmd,
 }
 
 #[derive(Debug, Clone)]
@@ -294,7 +294,7 @@ pub enum Range {
 #[derive(Debug, Clone)]
 pub struct Block {
     pub span: Span,
-    pub stmt: Box<Stmt>,
+    pub cmd: Box<Cmd>,
 }
 
 #[derive(Debug, Clone)]

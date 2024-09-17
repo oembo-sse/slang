@@ -1,38 +1,38 @@
 use crate::{
-    ast::{Block, Case, Cases, Expr, MethodRef, Name, Range, Stmt, StmtKind, Type},
+    ast::{Block, Case, Cases, Expr, MethodRef, Name, Range, Cmd, CmdKind, Type},
     Span,
 };
 
-impl Stmt {
-    pub fn new(kind: StmtKind) -> Stmt {
-        Stmt {
+impl Cmd {
+    pub fn new(kind: CmdKind) -> Cmd {
+        Cmd {
             span: kind.infer_span().unwrap_or_default(),
             kind,
         }
     }
-    pub fn vardef(name: &Name, ty: &Type, expr: &Option<Expr>) -> Stmt {
-        Stmt::new(StmtKind::VarDefinition {
+    pub fn vardef(name: &Name, ty: &Type, expr: &Option<Expr>) -> Cmd {
+        Cmd::new(CmdKind::VarDefinition {
             name: name.clone(),
             ty: (Span::default(), ty.clone()),
             expr: expr.clone(),
         })
     }
-    pub fn assign(name: &Name, expr: &Expr) -> Stmt {
-        Stmt::new(StmtKind::Assignment {
+    pub fn assign(name: &Name, expr: &Expr) -> Cmd {
+        Cmd::new(CmdKind::Assignment {
             name: name.clone(),
             expr: expr.clone(),
         })
     }
-    pub fn _match(cases: &[Case]) -> Stmt {
-        Stmt::new(StmtKind::Match {
+    pub fn _match(cases: &[Case]) -> Cmd {
+        Cmd::new(CmdKind::Match {
             body: Cases {
                 span: Span::default(),
                 cases: cases.to_vec(),
             },
         })
     }
-    pub fn _loop(invariants: &[Expr], variant: Option<Expr>, cases: &[Case]) -> Stmt {
-        Stmt::new(StmtKind::Loop {
+    pub fn _loop(invariants: &[Expr], variant: Option<Expr>, cases: &[Case]) -> Cmd {
+        Cmd::new(CmdKind::Loop {
             invariants: invariants.to_vec(),
             variant: variant.clone(),
             body: Cases {
@@ -46,73 +46,73 @@ impl Stmt {
         range: &Range,
         invariants: &[Expr],
         variant: Option<Expr>,
-        body: &Stmt,
-    ) -> Stmt {
-        Stmt::new(StmtKind::For {
+        body: &Cmd,
+    ) -> Cmd {
+        Cmd::new(CmdKind::For {
             name: name.clone(),
             range: range.clone(),
             invariants: invariants.to_vec(),
             variant: variant.clone(),
             body: Block {
                 span: Span::default(),
-                stmt: Box::new(body.clone()),
+                cmd: Box::new(body.clone()),
             },
         })
     }
-    pub fn _break() -> Stmt {
-        Stmt::new(StmtKind::Break)
+    pub fn _break() -> Cmd {
+        Cmd::new(CmdKind::Break)
     }
-    pub fn _continue() -> Stmt {
-        Stmt::new(StmtKind::Continue)
+    pub fn _continue() -> Cmd {
+        Cmd::new(CmdKind::Continue)
     }
-    pub fn _return(expr: &Option<Expr>) -> Stmt {
-        Stmt::new(StmtKind::Return { expr: expr.clone() })
+    pub fn _return(expr: &Option<Expr>) -> Cmd {
+        Cmd::new(CmdKind::Return { expr: expr.clone() })
     }
-    pub fn assume(condition: &Expr) -> Stmt {
-        Stmt::new(StmtKind::Assume {
+    pub fn assume(condition: &Expr) -> Cmd {
+        Cmd::new(CmdKind::Assume {
             condition: condition.clone(),
         })
     }
-    pub fn assert(condition: &Expr, message: &str) -> Stmt {
-        Stmt::new(StmtKind::Assert {
+    pub fn assert(condition: &Expr, message: &str) -> Cmd {
+        Cmd::new(CmdKind::Assert {
             condition: condition.clone(),
             message: message.into(),
         })
     }
-    pub fn seq(&self, other: &Stmt) -> Stmt {
-        Stmt::new(StmtKind::Seq(
+    pub fn seq(&self, other: &Cmd) -> Cmd {
+        Cmd::new(CmdKind::Seq(
             Box::new(self.clone()),
             Box::new(other.clone()),
         ))
     }
-    pub fn seqs(stmts: &[Stmt]) -> Stmt {
-        stmts
+    pub fn seqs(cmds: &[Cmd]) -> Cmd {
+        cmds
             .iter()
             .cloned()
-            .reduce(|a, b| Stmt::seq(&a, &b))
-            .unwrap_or(Stmt::nop())
+            .reduce(|a, b| Cmd::seq(&a, &b))
+            .unwrap_or(Cmd::nop())
     }
     pub fn methodcall(
         name: &Option<Name>,
         fun_name: &Name,
         args: &[Expr],
         method: &MethodRef,
-    ) -> Stmt {
-        Stmt::new(StmtKind::MethodCall {
+    ) -> Cmd {
+        Cmd::new(CmdKind::MethodCall {
             name: name.clone(),
             fun_name: fun_name.clone(),
             args: args.to_vec(),
             method: method.clone(),
         })
     }
-    pub fn nop() -> Stmt {
-        Stmt::assume(&Expr::bool(true))
+    pub fn nop() -> Cmd {
+        Cmd::assume(&Expr::bool(true))
     }
 
     pub fn assigned_vars(self) -> Vec<(Name, Type)> {
         match &self.kind {
-            StmtKind::VarDefinition { name, ty, .. } => vec![(name.clone(), ty.1.clone())],
-            StmtKind::MethodCall {
+            CmdKind::VarDefinition { name, ty, .. } => vec![(name.clone(), ty.1.clone())],
+            CmdKind::MethodCall {
                 name: Some(name),
                 method,
                 ..
@@ -120,24 +120,24 @@ impl Stmt {
                 name.clone(),
                 method.get().unwrap().return_ty.clone().unwrap().1,
             )],
-            StmtKind::Assignment { name, expr } => vec![(name.clone(), expr.ty.clone())],
-            StmtKind::Match { body } | StmtKind::Loop { body, .. } => body
+            CmdKind::Assignment { name, expr } => vec![(name.clone(), expr.ty.clone())],
+            CmdKind::Match { body } | CmdKind::Loop { body, .. } => body
                 .cases
                 .iter()
-                .flat_map(|case| case.clone().stmt.assigned_vars())
+                .flat_map(|case| case.clone().cmd.assigned_vars())
                 .collect(),
-            StmtKind::For { name, body, .. } => {
-                let mut vars = body.clone().stmt.assigned_vars();
+            CmdKind::For { name, body, .. } => {
+                let mut vars = body.clone().cmd.assigned_vars();
                 vars.push((name.clone(), Type::Int));
                 vars
             }
-            StmtKind::Break
-            | StmtKind::Continue
-            | StmtKind::Assume { .. }
-            | StmtKind::Assert { .. }
-            | StmtKind::MethodCall { name: None, .. }
-            | StmtKind::Return { .. } => vec![],
-            StmtKind::Seq(s1, s2) => {
+            CmdKind::Break
+            | CmdKind::Continue
+            | CmdKind::Assume { .. }
+            | CmdKind::Assert { .. }
+            | CmdKind::MethodCall { name: None, .. }
+            | CmdKind::Return { .. } => vec![],
+            CmdKind::Seq(s1, s2) => {
                 let mut vars1 = s1.clone().assigned_vars();
                 let vars2 = s2.clone().assigned_vars();
                 vars1.extend(vars2);
@@ -147,19 +147,19 @@ impl Stmt {
     }
 }
 
-impl StmtKind {
+impl CmdKind {
     fn infer_span(&self) -> Option<Span> {
         Some(match self {
-            StmtKind::VarDefinition { name, ty, expr } => {
+            CmdKind::VarDefinition { name, ty, expr } => {
                 if let Some(expr) = expr {
                     name.span.union(ty.0).union(expr.span)
                 } else {
                     name.span.union(ty.0)
                 }
             }
-            StmtKind::Assignment { name, expr } => name.span.union(expr.span),
-            StmtKind::Match { body } => body.span,
-            StmtKind::Loop {
+            CmdKind::Assignment { name, expr } => name.span.union(expr.span),
+            CmdKind::Match { body } => body.span,
+            CmdKind::Loop {
                 invariants,
                 variant,
                 body,
@@ -168,7 +168,7 @@ impl StmtKind {
                 .chain(variant.iter())
                 .map(|spec| spec.span)
                 .fold(body.span, Span::union),
-            StmtKind::For {
+            CmdKind::For {
                 name,
                 range: _,
                 invariants,
@@ -179,12 +179,12 @@ impl StmtKind {
                 .chain(variant.iter())
                 .map(|spec| spec.span)
                 .fold(name.span.union(body.span), Span::union),
-            StmtKind::Break => return None,
-            StmtKind::Continue => return None,
-            StmtKind::Return { expr } => return expr.as_ref().map(|e| e.span),
-            StmtKind::Assume { condition } | StmtKind::Assert { condition, .. } => condition.span,
-            StmtKind::Seq(c1, c2) => c1.span.union(c2.span),
-            StmtKind::MethodCall {
+            CmdKind::Break => return None,
+            CmdKind::Continue => return None,
+            CmdKind::Return { expr } => return expr.as_ref().map(|e| e.span),
+            CmdKind::Assume { condition } | CmdKind::Assert { condition, .. } => condition.span,
+            CmdKind::Seq(c1, c2) => c1.span.union(c2.span),
+            CmdKind::MethodCall {
                 name,
                 fun_name,
                 args,

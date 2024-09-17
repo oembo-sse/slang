@@ -5,7 +5,7 @@ mod expr_ext;
 mod parse;
 pub mod smt;
 mod span;
-mod stmt_ext;
+mod cmd_ext;
 pub mod tc;
 
 use std::sync::{Arc, RwLock};

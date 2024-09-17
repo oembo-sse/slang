@@ -7,7 +7,7 @@ use crate::{
     ast::{
         Block, Case, Cases, Domain, DomainAxiom, DomainItem, DomainRef, Expr, ExprKind, File,
         Function, FunctionRef, Global, Ident, Item, Method, MethodRef, Name, Op, PrefixOp, Range,
-        Specification, Stmt, StmtKind, Type, Var,
+        Specification, Cmd, CmdKind, Type, Var,
     },
     Items, Span,
 };
@@ -521,10 +521,10 @@ impl Op {
     }
 }
 
-impl Stmt {
-    fn tc(self, cx: &mut BlockContext) -> Stmt {
+impl Cmd {
+    fn tc(self, cx: &mut BlockContext) -> Cmd {
         match self.kind {
-            StmtKind::VarDefinition { name, ty, expr } => {
+            CmdKind::VarDefinition { name, ty, expr } => {
                 let expr = expr.map(|expr| expr.tc(cx));
                 let Var {
                     name,
@@ -550,8 +550,8 @@ impl Stmt {
                         ty
                     }
                 };
-                Stmt {
-                    kind: StmtKind::VarDefinition {
+                Cmd {
+                    kind: CmdKind::VarDefinition {
                         name,
                         ty: (ty_span, var_ty.clone()),
                         expr,
@@ -559,7 +559,7 @@ impl Stmt {
                     ..self
                 }
             }
-            StmtKind::Assignment { name, expr } => {
+            CmdKind::Assignment { name, expr } => {
                 let ident_ty = cx.var_ty(name.span, &name.ident);
 
                 match expr.kind.clone() {
@@ -567,9 +567,9 @@ impl Stmt {
                         fun_name,
                         args,
                         function: _,
-                    } if cx.lookup_method(&fun_name.ident).is_some() => Stmt {
+                    } if cx.lookup_method(&fun_name.ident).is_some() => Cmd {
                         span: self.span,
-                        kind: StmtKind::MethodCall {
+                        kind: CmdKind::MethodCall {
                             name: Some(name),
                             fun_name,
                             args,
@@ -580,29 +580,29 @@ impl Stmt {
                     _ => {
                         let expr = expr.tc(cx);
                         cx.expect_to_be(expr.span, &expr.ty, &ident_ty);
-                        Stmt {
-                            kind: StmtKind::Assignment { name, expr },
+                        Cmd {
+                            kind: CmdKind::Assignment { name, expr },
                             ..self
                         }
                     }
                 }
             }
-            StmtKind::Seq(c1, c2) => {
+            CmdKind::Seq(c1, c2) => {
                 let c1 = c1.tc(cx);
                 let c2 = c2.tc(cx);
-                Stmt {
-                    kind: StmtKind::Seq(Box::new(c1), Box::new(c2)),
+                Cmd {
+                    kind: CmdKind::Seq(Box::new(c1), Box::new(c2)),
                     ..self
                 }
             }
-            StmtKind::Match { body } => {
+            CmdKind::Match { body } => {
                 let body = body.tc(cx);
-                Stmt {
-                    kind: StmtKind::Match { body },
+                Cmd {
+                    kind: CmdKind::Match { body },
                     ..self
                 }
             }
-            StmtKind::Loop {
+            CmdKind::Loop {
                 invariants,
                 variant,
                 body,
@@ -622,8 +622,8 @@ impl Stmt {
                     })
                     .collect();
                 let body = cx.in_loop(|cx| body.tc(cx));
-                Stmt {
-                    kind: StmtKind::Loop {
+                Cmd {
+                    kind: CmdKind::Loop {
                         invariants,
                         variant,
                         body,
@@ -631,7 +631,7 @@ impl Stmt {
                     ..self
                 }
             }
-            StmtKind::For {
+            CmdKind::For {
                 name,
                 range,
                 invariants,
@@ -656,8 +656,8 @@ impl Stmt {
                     })
                     .collect();
                 let body = cx.in_loop(|cx| body.tc(cx));
-                Stmt {
-                    kind: StmtKind::For {
+                Cmd {
+                    kind: CmdKind::For {
                         name,
                         range,
                         invariants,
@@ -667,19 +667,19 @@ impl Stmt {
                     ..self
                 }
             }),
-            StmtKind::Break => {
+            CmdKind::Break => {
                 if !cx.is_loop {
                     cx.error(self.span, "`break` is only allowed in loops".to_string());
                 }
                 self
             }
-            StmtKind::Continue => {
+            CmdKind::Continue => {
                 if !cx.is_loop {
                     cx.error(self.span, "`continue` is only allowed in loops".to_string());
                 }
                 self
             }
-            StmtKind::Return { expr } => {
+            CmdKind::Return { expr } => {
                 let expr = if let Some(expr) = expr {
                     let expr = expr.tc(cx);
                     match cx.expected_return_ty.clone() {
@@ -705,30 +705,30 @@ impl Stmt {
                     }
                     None
                 };
-                Stmt {
-                    kind: StmtKind::Return { expr },
+                Cmd {
+                    kind: CmdKind::Return { expr },
                     ..self
                 }
             }
 
-            StmtKind::Assume { condition } => {
+            CmdKind::Assume { condition } => {
                 let condition = condition.tc(cx);
                 cx.expect_bool(condition.span, &condition.ty);
-                Stmt {
-                    kind: StmtKind::Assume { condition },
+                Cmd {
+                    kind: CmdKind::Assume { condition },
                     ..self
                 }
             }
 
-            StmtKind::Assert { condition, message } => {
+            CmdKind::Assert { condition, message } => {
                 let condition = condition.tc(cx);
                 cx.expect_bool(condition.span, &condition.ty);
-                Stmt {
-                    kind: StmtKind::Assert { condition, message },
+                Cmd {
+                    kind: CmdKind::Assert { condition, message },
                     ..self
                 }
             }
-            StmtKind::MethodCall {
+            CmdKind::MethodCall {
                 name,
                 fun_name,
                 args,
@@ -759,8 +759,8 @@ impl Stmt {
                         }
                     }
 
-                    Stmt {
-                        kind: StmtKind::MethodCall {
+                    Cmd {
+                        kind: CmdKind::MethodCall {
                             name,
                             fun_name,
                             args,
@@ -773,8 +773,8 @@ impl Stmt {
                         fun_name.span,
                         format!("no method named `{fun_name}` exists"),
                     );
-                    Stmt {
-                        kind: StmtKind::MethodCall {
+                    Cmd {
+                        kind: CmdKind::MethodCall {
                             name,
                             fun_name,
                             args,
@@ -810,7 +810,7 @@ impl Range {
 impl Block {
     fn tc(self, cx: &mut BlockContext) -> Block {
         Block {
-            stmt: Box::new(self.stmt.tc(cx)),
+            cmd: Box::new(self.cmd.tc(cx)),
             ..self
         }
     }
@@ -829,8 +829,8 @@ impl Case {
     fn tc(self, cx: &mut BlockContext) -> Case {
         let condition = self.condition.tc(cx);
         cx.expect_bool(condition.span, &condition.ty);
-        let stmt = self.stmt.tc(cx);
-        Case { condition, stmt }
+        let cmd = self.cmd.tc(cx);
+        Case { condition, cmd }
     }
 }
 

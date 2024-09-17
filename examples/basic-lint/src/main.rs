@@ -1,5 +1,5 @@
 use slang::{
-    ast::{ExprKind, Stmt, StmtKind},
+    ast::{ExprKind, Cmd, CmdKind},
     SourceFile,
 };
 use slang_ui::prelude::*;
@@ -13,20 +13,20 @@ impl slang_ui::Hook for App {
             let _enter = span.enter();
 
             if let Some(body) = m.body.clone() {
-                assert_true_lint(cx, &body.stmt)
+                assert_true_lint(cx, &body.cmd)
             }
         }
 
         Ok(())
     }
 }
-fn assert_true_lint(cx: &mut slang_ui::Context, stmt: &Stmt) {
-    match &stmt.kind {
-        StmtKind::Seq(c1, c2) => {
+fn assert_true_lint(cx: &mut slang_ui::Context, cmd: &Cmd) {
+    match &cmd.kind {
+        CmdKind::Seq(c1, c2) => {
             assert_true_lint(cx, c1);
             assert_true_lint(cx, c2);
         }
-        StmtKind::Assert { condition, .. } => {
+        CmdKind::Assert { condition, .. } => {
             if let ExprKind::Bool(true) = &condition.kind {
                 cx.info(
                     condition.span,
@@ -34,13 +34,13 @@ fn assert_true_lint(cx: &mut slang_ui::Context, stmt: &Stmt) {
                 );
             }
         }
-        StmtKind::Match { body } | StmtKind::Loop { body, .. } => {
+        CmdKind::Match { body } | CmdKind::Loop { body, .. } => {
             for case in &body.cases {
-                assert_true_lint(cx, &case.stmt);
+                assert_true_lint(cx, &case.cmd);
             }
         }
-        StmtKind::For { body, .. } => {
-            assert_true_lint(cx, &body.stmt);
+        CmdKind::For { body, .. } => {
+            assert_true_lint(cx, &body.cmd);
         }
 
         _ => {}

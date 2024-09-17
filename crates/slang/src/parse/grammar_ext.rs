@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expr, ExprKind, FunctionRef, Name, Op, PrefixOp, Quantifier, Stmt, StmtKind, Var},
+    ast::{Expr, ExprKind, FunctionRef, Name, Op, PrefixOp, Quantifier, Cmd, CmdKind, Var},
     Span,
 };
 
@@ -34,9 +34,9 @@ impl Expr {
     }
 }
 
-impl StmtKind {
-    pub(crate) fn parsed(self, start: usize, end: usize) -> Stmt {
-        Stmt {
+impl CmdKind {
+    pub(crate) fn parsed(self, start: usize, end: usize) -> Cmd {
+        Cmd {
             span: Span::from_start_end(start, end),
             kind: self,
         }

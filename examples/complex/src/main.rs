@@ -1,4 +1,4 @@
-use slang::ast::{self, Expr, ExprKind, Stmt, StmtKind};
+use slang::ast::{self, Expr, ExprKind, Cmd, CmdKind};
 use slang_ui::prelude::*;
 
 struct App;
@@ -64,7 +64,7 @@ impl slang_ui::Hook for App {
             match &m.body {
                 Some(body) => {
                     for post in m.ensures() {
-                        let p = wp(cx, &body.stmt, post.clone());
+                        let p = wp(cx, &body.cmd, post.clone());
                         let pre_imp_p = pre.imp(&p);
                         cx.info(m.name.span, format!("{}", pre_imp_p));
                         cx.info(m.name.span, format!("{}", smt_expr(&pre_imp_p)?));
@@ -172,32 +172,32 @@ fn smt_expr(expr: &Expr) -> Result<smtlib::terms::Dynamic> {
     }
 }
 
-fn wp(cx: &slang_ui::Context, stmt: &Stmt, q: Expr) -> Expr {
-    match &stmt.kind {
-        StmtKind::Seq(c1, c2) => wp(cx, c1, wp(cx, c2, q)),
-        StmtKind::Assert { condition, .. } => condition & q,
-        StmtKind::Assume { condition } => condition.imp(&q),
-        StmtKind::Assignment { name, expr } => q.subst(|x| x.as_ident() == Some(&name.ident), expr),
-        StmtKind::VarDefinition { name, ty: _, expr } => {
+fn wp(cx: &slang_ui::Context, cmd: &Cmd, q: Expr) -> Expr {
+    match &cmd.kind {
+        CmdKind::Seq(c1, c2) => wp(cx, c1, wp(cx, c2, q)),
+        CmdKind::Assert { condition, .. } => condition & q,
+        CmdKind::Assume { condition } => condition.imp(&q),
+        CmdKind::Assignment { name, expr } => q.subst(|x| x.as_ident() == Some(&name.ident), expr),
+        CmdKind::VarDefinition { name, ty: _, expr } => {
             if let Some(expr) = expr {
                 q.subst(|x| x.as_ident() == Some(&name.ident), expr)
             } else {
                 q
             }
         }
-        StmtKind::Return { expr: Some(expr) } => q.subst(|x| x.is_result(), expr),
-        StmtKind::Return { expr: None } => {
-            cx.todo(stmt.span);
+        CmdKind::Return { expr: Some(expr) } => q.subst(|x| x.is_result(), expr),
+        CmdKind::Return { expr: None } => {
+            cx.todo(cmd.span);
             Expr::error()
         }
-        StmtKind::Match { body } => body
+        CmdKind::Match { body } => body
             .cases
             .iter()
-            .map(|case| case.condition.imp(&wp(cx, &case.stmt, q.clone())))
+            .map(|case| case.condition.imp(&wp(cx, &case.cmd, q.clone())))
             .reduce(|a, b| a & b)
             .unwrap_or(Expr::bool(true)),
         // TODO: this is not entirely correct
-        StmtKind::Loop {
+        CmdKind::Loop {
             invariants, body, ..
         } => {
             let inv_conj = invariants
@@ -207,7 +207,7 @@ fn wp(cx: &slang_ui::Context, stmt: &Stmt, q: Expr) -> Expr {
                 .unwrap_or(Expr::bool(true));
 
             let cases = body.cases.iter().map(|case| {
-                (&case.condition & &inv_conj).imp(&wp(cx, &case.stmt, inv_conj.clone()))
+                (&case.condition & &inv_conj).imp(&wp(cx, &case.cmd, inv_conj.clone()))
             });
 
             let stopped = !body
@@ -220,12 +220,12 @@ fn wp(cx: &slang_ui::Context, stmt: &Stmt, q: Expr) -> Expr {
 
             cases.rfold(after.imp(&q), |a, b| a & b)
         }
-        StmtKind::For { name, .. } => {
+        CmdKind::For { name, .. } => {
             cx.warning(name.span, "WP of for-loops not yet implemented");
             q.clone()
         }
         _ => {
-            cx.todo(stmt.span);
+            cx.todo(cmd.span);
             Expr::error()
         }
     }

@@ -117,26 +117,26 @@ Args: Vec<Var> = {
     }
 }
 
-pub Stmt: Stmt = {
+pub Cmd: Cmd = {
     #[precedence(level = "0")]
     <l:@L> "var" <name:Name> <ty:(":" <Spanned<Type>>)?> <expr:(":=" <Expr>)?> <r:@R> =>
-        StmtKind::VarDefinition { ty: ty.unwrap_or((name.span, Type::Unresolved)), name, expr }.parsed(l, r),
+        CmdKind::VarDefinition { ty: ty.unwrap_or((name.span, Type::Unresolved)), name, expr }.parsed(l, r),
     <l:@L> <name:Name> ":=" <expr:Expr> <r:@R> =>
-        StmtKind::Assignment { name, expr }.parsed(l, r),
+        CmdKind::Assignment { name, expr }.parsed(l, r),
 
     <l:@L> "match" <body:Cases> <r:@R> =>
-        StmtKind::Match { body }.parsed(l, r),
+        CmdKind::Match { body }.parsed(l, r),
     <l:@L> "loop" <invariants:Invariant*> <variant:Variant?> <body:Cases> <r:@R> =>
-        StmtKind::Loop { invariants, variant, body }.parsed(l, r),
+        CmdKind::Loop { invariants, variant, body }.parsed(l, r),
     <l:@L> "for" <name:Name> "in" <range:Range> <invariants:Invariant*> <variant:Variant?> <body:Block> <r:@R> =>
-            StmtKind::For { name, range, invariants, variant, body }.parsed(l, r),
-    <l:@L> "break" <r:@R> => StmtKind::Break.parsed(l, r),
-    <l:@L> "continue" <r:@R> => StmtKind::Continue.parsed(l, r),
-    <l:@L> "return" <expr:Expr?> <r:@R> => StmtKind::Return { expr }.parsed(l, r),
+            CmdKind::For { name, range, invariants, variant, body }.parsed(l, r),
+    <l:@L> "break" <r:@R> => CmdKind::Break.parsed(l, r),
+    <l:@L> "continue" <r:@R> => CmdKind::Continue.parsed(l, r),
+    <l:@L> "return" <expr:Expr?> <r:@R> => CmdKind::Return { expr }.parsed(l, r),
 
-    <l:@L> "assume" <condition:Expr> <r:@R> => StmtKind::Assume { condition }.parsed(l, r),
-    <l:@L> "assert" <condition:Expr> <r:@R> => StmtKind::Assert { condition, message: "Assertion might fail".to_owned() }.parsed(l, r),
-    <l:@L> <fun_name:Name> "(" <args:CommaExpr> ")" <r:@R> => StmtKind::MethodCall {
+    <l:@L> "assume" <condition:Expr> <r:@R> => CmdKind::Assume { condition }.parsed(l, r),
+    <l:@L> "assert" <condition:Expr> <r:@R> => CmdKind::Assert { condition, message: "Assertion might fail".to_owned() }.parsed(l, r),
+    <l:@L> <fun_name:Name> "(" <args:CommaExpr> ")" <r:@R> => CmdKind::MethodCall {
         name: None,
         fun_name,
         args,
@@ -144,7 +144,7 @@ pub Stmt: Stmt = {
     }.parsed(l, r),
 
     #[precedence(level = "1")] #[assoc(side = "right")]
-    <l:@L> <c1:Stmt> ";" <c2:Stmt> <r:@R> => StmtKind::Seq(Box::new(c1), Box::new(c2)).parsed(l, r),
+    <l:@L> <c1:Cmd> ";" <c2:Cmd> <r:@R> => CmdKind::Seq(Box::new(c1), Box::new(c2)).parsed(l, r),
 }
 
 Invariant: Expr = {
@@ -156,7 +156,7 @@ Variant: Expr = {
 }
 
 Case: Case = {
-    <condition:Expr> "=>" <stmt:Stmt> => Case { condition, stmt }
+    <condition:Expr> "=>" <cmd:Cmd> => Case { condition, cmd }
 }
 
 Cases: Cases = {
@@ -174,7 +174,7 @@ Range: Range = {
 }
 
 Block: Block = {
-    Spanned<("{" <Stmt> "}")> => Block { span: <>.0, stmt: Box::new(<>.1) }
+    Spanned<("{" <Cmd> "}")> => Block { span: <>.0, cmd: Box::new(<>.1) }
 }
 
 CommaExpr: Vec<Expr> = {
