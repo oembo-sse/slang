@@ -306,6 +306,9 @@ impl Expr {
     pub fn is_result(&self) -> bool {
         matches!(&self.kind, ExprKind::Result)
     }
+    pub fn is_ident(&self, i: &Ident) -> bool {
+        matches!(&self.kind, ExprKind::Ident(x) if x == i)
+    }
 }
 
 impl std::fmt::Display for Expr {
@@ -342,6 +345,15 @@ impl std::fmt::Display for Quantifier {
         match self {
             Quantifier::Forall => write!(f, "forall"),
             Quantifier::Exists => write!(f, "exists"),
+        }
+    }
+}
+
+impl Name {
+    pub fn ident(ident: Ident) -> Name {
+        Name {
+            ident,
+            span: Span::default(),
         }
     }
 }
