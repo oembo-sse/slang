@@ -13,6 +13,7 @@ proptest = "1.5.0"
 strsim = "0.11.1"
 thiserror = "1.0.63"
 tracing = "0.1.40"
+smtlib = { git = "https://github.com/oeb25/smtlib-rs", version = "0.2.0" }
 
 [build-dependencies]
 lalrpop = "0.20.2"
