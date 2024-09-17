@@ -61,27 +61,32 @@ impl slang_ui::Hook for App {
                 .cloned()
                 .reduce(|a, b| a & b)
                 .unwrap_or(Expr::bool(true));
-            for post in m.ensures() {
-                let p = wp(cx, &m.body.stmt, post.clone());
-                let pre_imp_p = pre.imp(&p);
-                cx.info(m.name.span, format!("{}", pre_imp_p));
-                cx.info(m.name.span, format!("{}", smt_expr(&pre_imp_p)?));
-                let pre_imp_p = smt_expr(&pre_imp_p)?;
-                solver.scope(|solver| {
-                    solver.assert(!pre_imp_p.as_bool()?)?;
-                    match solver.check_sat_with_model()? {
-                        smtlib::SatResultWithModel::Unsat => {
-                            cx.info(post.span, "holds");
-                        }
-                        smtlib::SatResultWithModel::Sat(model) => {
-                            cx.error(post.span, format!("might not hold: {model}"));
-                        }
-                        smtlib::SatResultWithModel::Unknown => {
-                            cx.warning(post.span, "unknown sat result");
-                        }
+            match &m.body {
+                Some(body) => {
+                    for post in m.ensures() {
+                        let p = wp(cx, &body.stmt, post.clone());
+                        let pre_imp_p = pre.imp(&p);
+                        cx.info(m.name.span, format!("{}", pre_imp_p));
+                        cx.info(m.name.span, format!("{}", smt_expr(&pre_imp_p)?));
+                        let pre_imp_p = smt_expr(&pre_imp_p)?;
+                        solver.scope(|solver| {
+                            solver.assert(!pre_imp_p.as_bool()?)?;
+                            match solver.check_sat_with_model()? {
+                                smtlib::SatResultWithModel::Unsat => {
+                                    cx.info(post.span, "holds");
+                                }
+                                smtlib::SatResultWithModel::Sat(model) => {
+                                    cx.error(post.span, format!("might not hold: {model}"));
+                                }
+                                smtlib::SatResultWithModel::Unknown => {
+                                    cx.warning(post.span, "unknown sat result");
+                                }
+                            }
+                            Ok(())
+                        })?;
                     }
-                    Ok(())
-                })?;
+                }
+                None => (),
             }
         }
 
@@ -97,7 +102,6 @@ fn smt_sort(ty: &ast::Type) -> Result<smtlib::sorts::Sort> {
         ast::Type::Domain { name, .. } => Ok(smtlib::sorts::Sort::new(name.to_string())),
         ast::Type::Unknown { name } => bail!("unknown type: {name}"),
         ast::Type::Error => bail!("type error"),
-        _ => bail!("..."),
     }
 }
 
@@ -145,7 +149,6 @@ fn smt_expr(expr: &Expr) -> Result<smtlib::terms::Dynamic> {
                 ast::Quantifier::Exists => {
                     Ok(smtlib::terms::exists(vars?, smt_expr(x)?.as_bool()?).into_dynamic())
                 }
-                _ => todo!(),
             }
         }
         ExprKind::FunctionCall {
@@ -172,8 +175,8 @@ fn smt_expr(expr: &Expr) -> Result<smtlib::terms::Dynamic> {
 fn wp(cx: &slang_ui::Context, stmt: &Stmt, q: Expr) -> Expr {
     match &stmt.kind {
         StmtKind::Seq(c1, c2) => wp(cx, c1, wp(cx, c2, q)),
-        StmtKind::Assert(x) => x & q,
-        StmtKind::Assume(x) => x.imp(&q),
+        StmtKind::Assert { condition, .. } => condition & q,
+        StmtKind::Assume { condition } => condition.imp(&q),
         StmtKind::Assignment { name, expr } => q.subst(|x| x.as_ident() == Some(&name.ident), expr),
         StmtKind::VarDefinition { name, ty: _, expr } => {
             if let Some(expr) = expr {
@@ -194,7 +197,9 @@ fn wp(cx: &slang_ui::Context, stmt: &Stmt, q: Expr) -> Expr {
             .reduce(|a, b| a & b)
             .unwrap_or(Expr::bool(true)),
         // TODO: this is not entirely correct
-        StmtKind::Loop { invariants, body } => {
+        StmtKind::Loop {
+            invariants, body, ..
+        } => {
             let inv_conj = invariants
                 .iter()
                 .cloned()

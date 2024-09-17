@@ -57,6 +57,8 @@ monaco.languages.setMonarchTokensProvider(LANGUAGE_ID, {
     "requires",
     "ensures",
     "modifies",
+    "invariant",
+    "decreases",
 
     "var",
     "match",
@@ -69,7 +71,7 @@ monaco.languages.setMonarchTokensProvider(LANGUAGE_ID, {
     "assert",
     "assume",
   ],
-  constants: ["true", "false", "forall", "exists", "result", "Int", "Bool"],
+  constants: ["true", "false", "forall", "exists", "result", "Int", "Bool", "broke", "old"],
   operators: [
     "-",
     ",",

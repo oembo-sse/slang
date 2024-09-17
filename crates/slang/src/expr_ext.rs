@@ -68,6 +68,19 @@ impl std::ops::Neg for Expr {
 }
 
 impl Expr {
+    pub fn new_typed(kind: ExprKind, ty: Type) -> Expr {
+        Expr {
+            span: kind.infer_span().unwrap_or_default(),
+            kind,
+            ty,
+        }
+    }
+    pub fn result(ty: &Type) -> Expr {
+        Expr::new_typed(ExprKind::Result, ty.clone())
+    }
+    pub fn broke() -> Expr {
+        Expr::new_typed(ExprKind::Broke, Type::Bool)
+    }
     pub fn op(&self, op: Op, rhs: &Expr) -> Expr {
         let lhs = self;
         let ty = match op {
@@ -77,36 +90,26 @@ impl Expr {
                 Type::Bool
             }
         };
-        Expr {
-            span: lhs.span.union(rhs.span),
+        Expr::new_typed(
+            ExprKind::Infix(Box::new(lhs.clone()), op, Box::new(rhs.clone())),
             ty,
-            kind: ExprKind::Infix(Box::new(lhs.clone()), op, Box::new(rhs.clone())),
-        }
+        )
     }
     pub fn prefix(&self, op: PrefixOp) -> Expr {
         let ty = match op {
             PrefixOp::Neg => Type::Int,
             PrefixOp::Not => Type::Bool,
         };
-        Expr {
-            span: self.span,
-            ty,
-            kind: ExprKind::Prefix(op, Box::new(self.clone())),
-        }
+        Expr::new_typed(ExprKind::Prefix(op, Box::new(self.clone())), ty)
     }
     pub fn num(value: i64) -> Expr {
-        Expr {
-            span: Span::default(),
-            kind: ExprKind::Num(value),
-            ty: Type::Int,
-        }
+        Expr::new_typed(ExprKind::Num(value), Type::Int)
     }
     pub fn bool(value: bool) -> Expr {
-        Expr {
-            span: Span::default(),
-            kind: ExprKind::Bool(value),
-            ty: Type::Bool,
-        }
+        Expr::new_typed(ExprKind::Bool(value), Type::Bool)
+    }
+    pub fn ident(ident: &Ident, ty: &Type) -> Expr {
+        Expr::new_typed(ExprKind::Ident(ident.clone()), ty.clone())
     }
     pub fn ident(ide: Ident, ty: &Type) -> Expr {
         Expr {
@@ -119,27 +122,20 @@ impl Expr {
         Expr::op(self, Op::Imp, other)
     }
     pub fn ite(&self, then: &Expr, otherwise: &Expr) -> Expr {
-        Expr {
-            span: self.span.union(then.span).union(otherwise.span),
-            kind: ExprKind::Ite(
+        Expr::new_typed(
+            ExprKind::Ite(
                 Box::new(self.clone()),
                 Box::new(then.clone()),
                 Box::new(otherwise.clone()),
             ),
-            ty: then.ty.clone(),
-        }
+            then.ty.clone(),
+        )
     }
     pub fn quantifier(q: Quantifier, vars: &[Var], body: &Expr) -> Expr {
-        Expr {
-            span: vars
-                .iter()
-                .map(|v| v.span)
-                .chain(std::iter::once(body.span))
-                .reduce(|a, b| a.union(b))
-                .unwrap_or_default(),
-            kind: ExprKind::Quantifier(q, vars.to_vec(), Box::new(body.clone())),
-            ty: Type::Bool,
-        }
+        Expr::new_typed(
+            ExprKind::Quantifier(q, vars.to_vec(), Box::new(body.clone())),
+            Type::Bool,
+        )
     }
     pub fn call(name: Name, args: Vec<Expr>, fun_ref: FunctionRef) -> Expr {
         let ty = if let Some(fun) = fun_ref.get() {
@@ -147,20 +143,14 @@ impl Expr {
         } else {
             Type::Error
         };
-        Expr {
-            span: args
-                .iter()
-                .map(|a| a.span)
-                .chain(std::iter::once(name.span))
-                .reduce(|a, b| a.union(b))
-                .unwrap_or_default(),
-            kind: ExprKind::FunctionCall {
+        Expr::new_typed(
+            ExprKind::FunctionCall {
                 fun_name: name,
                 args,
                 function: fun_ref.clone(),
             },
             ty,
-        }
+        )
     }
     pub fn subst(&self, mut f: impl FnMut(&Expr) -> bool, to: &Expr) -> Expr {
         self.pre_order_map(|x| f(x).then(|| to.clone()))
@@ -210,6 +200,7 @@ impl Expr {
                 .cow_up()
                 .map(|args| Expr::call(fun_name.clone(), args, function.clone())),
             ExprKind::Error => None,
+            ExprKind::Broke => None,
         }
     }
     pub fn post_order_map(&self, mut f: impl FnMut(&Expr) -> Option<Expr>) -> Expr {
@@ -253,11 +244,19 @@ impl Expr {
                 .cow_up()
                 .map(|args| Expr::call(fun_name.clone(), args, function.clone())),
             ExprKind::Error => None,
+            ExprKind::Broke => None,
         };
 
         match changed_inner {
             Some(new) => f(&new),
             None => f(self),
+        }
+    }
+
+    pub fn with_span(&self, span: &Span) -> Expr {
+        Expr {
+            span: span.clone(),
+            ..self.clone()
         }
     }
 }
@@ -337,6 +336,7 @@ impl std::fmt::Display for Expr {
                 write!(f, "{fun_name}({})", args.iter().format(", "))
             }
             ExprKind::Error => write!(f, "error"),
+            ExprKind::Broke => write!(f, "broke"),
         }
     }
 }
@@ -362,5 +362,27 @@ impl Name {
             ident,
             span: Span::default(),
         }
+    }
+}
+  
+impl ExprKind {
+    fn infer_span(&self) -> Option<Span> {
+        Some(match self {
+            ExprKind::Error
+            | ExprKind::Result
+            | ExprKind::Broke
+            | ExprKind::Bool(_)
+            | ExprKind::Num(_)
+            | ExprKind::Ident(_) => return None,
+            ExprKind::Old(i) => return Some(i.span),
+            ExprKind::Prefix(_, e) => return Some(e.span),
+            ExprKind::Infix(e1, _, e2) => e1.span.union(e2.span),
+            ExprKind::Ite(e1, e2, e3) => e1.span.union(e2.span.union(e3.span)),
+            ExprKind::Quantifier(_, v, e) => v.iter().map(|var| var.span).fold(e.span, Span::union),
+            ExprKind::FunctionCall { fun_name, args, .. } => args
+                .iter()
+                .map(|arg| arg.span)
+                .fold(fun_name.span, Span::union),
+        })
     }
 }

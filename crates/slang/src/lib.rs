@@ -14,7 +14,6 @@ use indexmap::IndexMap;
 pub use parse::ParseResult;
 pub use span::{Position, Span};
 
-#[non_exhaustive]
 #[derive(Debug)]
 pub struct SourceFile {
     items: Arc<Items>,
