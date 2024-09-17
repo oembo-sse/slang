@@ -111,13 +111,6 @@ impl Expr {
     pub fn ident(ident: &Ident, ty: &Type) -> Expr {
         Expr::new_typed(ExprKind::Ident(ident.clone()), ty.clone())
     }
-    pub fn ident(ide: Ident, ty: &Type) -> Expr {
-        Expr {
-            span: Span::default(),
-            ty: ty.clone(),
-            kind: ExprKind::Ident(ide),
-        }
-    }
     pub fn imp(&self, other: &Expr) -> Expr {
         Expr::op(self, Op::Imp, other)
     }
@@ -357,14 +350,14 @@ impl std::fmt::Display for Quantifier {
 }
 
 impl Name {
-    pub fn ide(ident: Ident) -> Name {
+    pub fn ident(ident: Ident) -> Name {
         Name {
             ident,
             span: Span::default(),
         }
     }
 }
-  
+
 impl ExprKind {
     fn infer_span(&self) -> Option<Span> {
         Some(match self {
