@@ -12,7 +12,9 @@ impl slang_ui::Hook for App {
             let span = tracing::info_span!("method", name=%m.name);
             let _enter = span.enter();
 
-            m.body.clone().map(|body| assert_true_lint(cx, &body.stmt));
+            if let Some(body) = m.body.clone() {
+                assert_true_lint(cx, &body.stmt)
+            }
         }
 
         Ok(())

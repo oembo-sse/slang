@@ -246,9 +246,9 @@ impl Expr {
         }
     }
 
-    pub fn with_span(&self, span: &Span) -> Expr {
+    pub fn with_span(&self, span: Span) -> Expr {
         Expr {
-            span: span.clone(),
+            span,
             ..self.clone()
         }
     }
