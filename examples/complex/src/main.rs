@@ -1,4 +1,4 @@
-use slang::ast::{self, Expr, ExprKind, Cmd, CmdKind};
+use slang::ast::{self, Cmd, CmdKind, Expr, ExprKind};
 use slang_ui::prelude::*;
 
 struct App;

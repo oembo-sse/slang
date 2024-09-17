@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expr, ExprKind, FunctionRef, Name, Op, PrefixOp, Quantifier, Cmd, CmdKind, Var},
+    ast::{Cmd, CmdKind, Expr, ExprKind, FunctionRef, Name, Op, PrefixOp, Quantifier, Var},
     Span,
 };
 

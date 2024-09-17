@@ -1,5 +1,5 @@
 use slang::{
-    ast::{ExprKind, Cmd, CmdKind},
+    ast::{Cmd, CmdKind, ExprKind},
     SourceFile,
 };
 use slang_ui::prelude::*;

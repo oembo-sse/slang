@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Block, Case, Cases, Expr, MethodRef, Name, Range, Cmd, CmdKind, Type},
+    ast::{Block, Case, Cases, Cmd, CmdKind, Expr, MethodRef, Name, Range, Type},
     Span,
 };
 
@@ -86,8 +86,7 @@ impl Cmd {
         ))
     }
     pub fn seqs(cmds: &[Cmd]) -> Cmd {
-        cmds
-            .iter()
+        cmds.iter()
             .cloned()
             .reduce(|a, b| Cmd::seq(&a, &b))
             .unwrap_or(Cmd::nop())

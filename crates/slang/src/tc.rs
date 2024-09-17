@@ -5,9 +5,9 @@ use itertools::Itertools;
 
 use crate::{
     ast::{
-        Block, Case, Cases, Domain, DomainAxiom, DomainItem, DomainRef, Expr, ExprKind, File,
-        Function, FunctionRef, Global, Ident, Item, Method, MethodRef, Name, Op, PrefixOp, Range,
-        Specification, Cmd, CmdKind, Type, Var,
+        Block, Case, Cases, Cmd, CmdKind, Domain, DomainAxiom, DomainItem, DomainRef, Expr,
+        ExprKind, File, Function, FunctionRef, Global, Ident, Item, Method, MethodRef, Name, Op,
+        PrefixOp, Range, Specification, Type, Var,
     },
     Items, Span,
 };
