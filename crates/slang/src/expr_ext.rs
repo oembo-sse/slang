@@ -145,8 +145,24 @@ impl Expr {
             ty,
         )
     }
+    /// Substitute all sub-expressions for which `f` returns true with `to`.
     pub fn subst(&self, mut f: impl FnMut(&Expr) -> bool, to: &Expr) -> Expr {
         self.pre_order_map(|x| f(x).then(|| to.clone()))
+    }
+    /// Substitute all occurrences of `from` with `to`.
+    pub fn subst_ident(&self, from: &Ident, to: &Expr) -> Expr {
+        self.subst(|x| x.is_ident(from), to)
+    }
+    /// Substitute all occurrences of `old(from)` with `to`.
+    pub fn subst_old_ident(&self, from: &Ident, to: &Expr) -> Expr {
+        self.subst(
+            |x| matches!(&x.kind, ExprKind::Old(i) if &i.ident == from),
+            to,
+        )
+    }
+    /// Substitute all occurrences of `result` with `to`.
+    pub fn subst_result(&self, to: &Expr) -> Expr {
+        self.subst(Expr::is_result, to)
     }
     pub fn pre_order_map(&self, mut f: impl FnMut(&Expr) -> Option<Expr>) -> Expr {
         self.pre_order_map_impl(&mut f)
