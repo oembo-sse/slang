@@ -21,13 +21,18 @@
         <div id="status-bar">
           <div class="flex items-center p-2 text-2xl text-white">
             <span id="status-bar-text" class="font-bold"> ... </span>
-            <div class="flex-1" />
-            <span class="text-xl">
+            <div class="flex-1"></div>
+            <span class="text-xl bg-transparent text-black">
+              <select id="sample-files" class="text-black appearance-none" >
+                <option selected value> -- select a program -- </option>
+                <!-- <option class="text-black">Hello</option>
+                <option class="text-black">World</option> -->
+              </select>
               <!-- {#if !$parseError && $state == 'checked'}
               {#if $result.is_fully_annotated}
-                The program is <b>fully annotated</b>
+              The program is <b>fully annotated</b>
               {:else}
-                The program is <b><i>not</i> fully annotated</b>
+              The program is <b><i>not</i> fully annotated</b>
               {/if}
             {/if} -->
             </span>

@@ -103,8 +103,16 @@ const run = async () => {
   const container = document.getElementById("container");
   const statusBar = document.getElementById("status-bar");
   const statusBarText = document.getElementById("status-bar-text");
+  const sampleFilesSelect = document.getElementById("sample-files");
 
-  if (!container || !statusBar || !statusBarText) return;
+  if (
+    !container ||
+    !statusBar ||
+    !statusBarText ||
+    !sampleFilesSelect ||
+    !(sampleFilesSelect instanceof HTMLSelectElement)
+  )
+    return;
 
   await Promise.all([
     fetch("./themes/dark.json")
@@ -142,6 +150,8 @@ const run = async () => {
       checked: "bg-blue-900",
       error: "bg-red-500",
     };
+
+    // TODO: fix empty messages
 
     if (state == "connected") {
       if (analysis.type == "idle") {
@@ -230,6 +240,35 @@ const run = async () => {
       updateUI();
     }
   };
+
+  tapi.sampleFiles({}).data.then((res) => {
+    console.log(res, sampleFilesSelect);
+
+    for (const name in res.files) {
+      const option = document.createElement("option");
+
+      option.value = name;
+      option.text = name;
+
+      option.onchange = () => {
+        console.log("change", { option, name });
+      };
+
+      sampleFilesSelect.appendChild(option);
+    }
+
+    sampleFilesSelect.onchange = () => {
+      const name = sampleFilesSelect.value;
+
+      if (!(name in res.files)) return;
+
+      const src = res.files[name];
+
+      editor.setValue(src);
+
+      onChange();
+    };
+  });
 
   tapi.heartbeat("Alive", {}).listen((msg) => {
     switch (msg.type) {

@@ -1,6 +1,7 @@
 mod monaco;
 
 use std::{
+    collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, RwLock},
 };
@@ -281,7 +282,7 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
 ///
 /// Returns `true` if the file exists, `false` otherwise.
 fn populate_js_client(endpoints: &tapi::endpoints::Endpoints<AppState>) -> bool {
-    let js_client_path = std::path::PathBuf::from("./static/tapi.js");
+    let js_client_path = std::path::PathBuf::from("./crates/slang-ui/static/tapi.js");
     // write JavaScript client if and only if the path already exists
     if js_client_path.exists() {
         // only write if the contents are different
@@ -336,7 +337,8 @@ impl std::fmt::Debug for AppState {
 
 fn endpoints() -> tapi::endpoints::Endpoints<'static, AppState> {
     tapi::endpoints::Endpoints::new([
-        &heartbeat::endpoint as &dyn tapi::endpoints::Endpoint<AppState>,
+        &sample_files::endpoint as &dyn tapi::endpoints::Endpoint<AppState>,
+        &heartbeat::endpoint as _,
         &analyze::endpoint as _,
         &hover::endpoint as _,
     ])
@@ -382,6 +384,27 @@ async fn heartbeat() -> tapi::endpoints::Sse<Heartbeat> {
     });
 
     tapi::endpoints::Sse::new(tokio_stream::wrappers::ReceiverStream::new(rx))
+}
+
+#[derive(Debug, Default, Serialize, tapi::Tapi)]
+struct SampleFiles {
+    files: BTreeMap<String, String>,
+}
+
+#[tapi::tapi(path = "/sample-files", method = Get)]
+async fn sample_files() -> Json<SampleFiles> {
+    let Ok(files) = glob::glob("**/*.slang") else {
+        return Json(SampleFiles::default());
+    };
+    Json(SampleFiles {
+        files: files
+            .filter_map(|f| {
+                let f = f.ok()?;
+                let src = std::fs::read_to_string(&f).ok()?;
+                Some((f.display().to_string(), src))
+            })
+            .collect(),
+    })
 }
 
 #[derive(Debug, Serialize, Deserialize, tapi::Tapi)]

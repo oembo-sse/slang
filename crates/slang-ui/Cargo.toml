@@ -9,6 +9,7 @@ axum-extra = "0.9.3"
 clap = { version = "4.5.17", features = ["derive"] }
 color-eyre = "0.6.3"
 futures-util = "0.3.30"
+glob = "0.3.1"
 miette = { version = "7.2.0", features = ["fancy"] }
 mime_guess = "2.0.5"
 rust-embed = "8.5.0"
