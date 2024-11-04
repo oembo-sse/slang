@@ -81,6 +81,7 @@ impl Expr {
     pub fn broke() -> Expr {
         Expr::new_typed(ExprKind::Broke, Type::Bool)
     }
+    #[must_use]
     pub fn op(&self, op: Op, rhs: &Expr) -> Expr {
         let lhs = self;
         let ty = match op {
@@ -95,6 +96,7 @@ impl Expr {
             ty,
         )
     }
+    #[must_use]
     pub fn prefix(&self, op: PrefixOp) -> Expr {
         let ty = match op {
             PrefixOp::Neg => Type::Int,
@@ -111,9 +113,11 @@ impl Expr {
     pub fn ident(ident: &Ident, ty: &Type) -> Expr {
         Expr::new_typed(ExprKind::Ident(ident.clone()), ty.clone())
     }
+    #[must_use]
     pub fn imp(&self, other: &Expr) -> Expr {
         Expr::op(self, Op::Imp, other)
     }
+    #[must_use]
     pub fn ite(&self, then: &Expr, otherwise: &Expr) -> Expr {
         Expr::new_typed(
             ExprKind::Ite(
@@ -145,15 +149,48 @@ impl Expr {
             ty,
         )
     }
+    /// Create `self < other`.
+    #[must_use]
+    pub fn lt(&self, other: &Expr) -> Expr {
+        Expr::op(self, Op::Lt, other)
+    }
+    /// Create `self <= other`.
+    #[must_use]
+    pub fn le(&self, other: &Expr) -> Expr {
+        Expr::op(self, Op::Le, other)
+    }
+    /// Create `self > other`.
+    #[must_use]
+    pub fn gt(&self, other: &Expr) -> Expr {
+        Expr::op(self, Op::Gt, other)
+    }
+    /// Create `self >= other`.
+    #[must_use]
+    pub fn ge(&self, other: &Expr) -> Expr {
+        Expr::op(self, Op::Ge, other)
+    }
+    /// Create `self == other`.
+    #[must_use]
+    pub fn eq(&self, other: &Expr) -> Expr {
+        Expr::op(self, Op::Eq, other)
+    }
+    /// Create `self != other`.
+    #[must_use]
+    pub fn ne(&self, other: &Expr) -> Expr {
+        Expr::op(self, Op::Ne, other)
+    }
     /// Substitute all sub-expressions for which `f` returns true with `to`.
+    #[must_use]
     pub fn subst(&self, mut f: impl FnMut(&Expr) -> bool, to: &Expr) -> Expr {
         self.pre_order_map(|x| f(x).then(|| to.clone()))
     }
     /// Substitute all occurrences of `from` with `to`.
+    #[must_use]
     pub fn subst_ident(&self, from: &Ident, to: &Expr) -> Expr {
         self.subst(|x| x.is_ident(from), to)
     }
     /// Substitute all occurrences of `old(from)` with `to`.
+    #[must_use]
     pub fn subst_old_ident(&self, from: &Ident, to: &Expr) -> Expr {
         self.subst(
             |x| matches!(&x.kind, ExprKind::Old(i) if &i.ident == from),
@@ -161,9 +198,11 @@ impl Expr {
         )
     }
     /// Substitute all occurrences of `result` with `to`.
+    #[must_use]
     pub fn subst_result(&self, to: &Expr) -> Expr {
         self.subst(Expr::is_result, to)
     }
+    #[must_use]
     pub fn pre_order_map(&self, mut f: impl FnMut(&Expr) -> Option<Expr>) -> Expr {
         self.pre_order_map_impl(&mut f)
             .unwrap_or_else(|| self.clone())
@@ -212,6 +251,7 @@ impl Expr {
             ExprKind::Broke => None,
         }
     }
+    #[must_use]
     pub fn post_order_map(&self, mut f: impl FnMut(&Expr) -> Option<Expr>) -> Expr {
         self.post_order_map_impl(&mut f)
             .unwrap_or_else(|| self.clone())
@@ -261,7 +301,7 @@ impl Expr {
             None => f(self),
         }
     }
-
+    #[must_use]
     pub fn with_span(&self, span: Span) -> Expr {
         Expr {
             span,
