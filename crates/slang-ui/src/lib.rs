@@ -15,6 +15,7 @@ use axum::{
 };
 use clap::Parser;
 use color_eyre::eyre::Context as _;
+use itertools::Itertools;
 use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use slang::{Position, SourceFile, Span};
@@ -28,6 +29,7 @@ pub use color_eyre::eyre::{bail, eyre};
 pub mod prelude {
     pub use super::Result;
     pub use color_eyre::eyre::{bail, eyre};
+    pub use miette;
     pub use slang;
     pub use smtlib::{self, prelude::*};
     pub use tracing;
@@ -217,8 +219,17 @@ enum Command {
     #[default]
     Ui,
     Check {
+        #[clap(long, short, default_value = "human")]
+        format: OutputFormat,
         path: PathBuf,
     },
+}
+
+#[derive(Debug, Default, Clone, Copy, clap::ValueEnum)]
+enum OutputFormat {
+    #[default]
+    Human,
+    Json,
 }
 
 async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
@@ -242,7 +253,7 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
 
             Ok(())
         }
-        Command::Check { path } => {
+        Command::Check { path, format } => {
             let src = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read '{}'", path.display()))?;
 
@@ -251,8 +262,8 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
                 Err((_, error)) => return Err(error),
             };
 
-            for report in reports {
-                let report = miette::miette!(
+            let diagnostics = reports.into_iter().map(|report| {
+                miette::diagnostic!(
                     labels = vec![miette::LabeledSpan::at(
                         (report.span.start(), report.span.len()),
                         &report.message
@@ -265,12 +276,20 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
                     "{}",
                     report.message
                 )
-                .with_source_code(miette::NamedSource::new(
-                    path.display().to_string(),
-                    src.to_string(),
-                ));
-
-                println!("{report:?}");
+            });
+            match format {
+                OutputFormat::Human => {
+                    for diag in diagnostics {
+                        let report = miette::Report::new(diag).with_source_code(
+                            miette::NamedSource::new(path.display().to_string(), src.to_string()),
+                        );
+                        println!("{report:?}");
+                    }
+                }
+                OutputFormat::Json => {
+                    let output = serde_json::to_string(&diagnostics.collect_vec())?;
+                    println!("{}", output);
+                }
             }
 
             Ok(())
