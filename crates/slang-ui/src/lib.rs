@@ -252,7 +252,7 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
                 .nest("/api", Router::new().tapis(endpoints.into_iter()))
                 .route("/", get(index_handler))
                 .route("/index.html", get(index_handler))
-                .route("/*file", get(static_handler))
+                .route("/{*file}", get(static_handler))
                 .with_state(AppState { hook });
 
             let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
