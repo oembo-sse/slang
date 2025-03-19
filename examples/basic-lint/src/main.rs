@@ -7,7 +7,7 @@ use slang_ui::prelude::*;
 struct App;
 
 impl slang_ui::Hook for App {
-    fn analyze(&self, cx: &mut slang_ui::Context, file: &SourceFile) -> slang_ui::Result<()> {
+    fn analyze(&self, cx: &slang_ui::Context, file: &SourceFile) -> slang_ui::Result<()> {
         for m in file.methods() {
             let span = tracing::info_span!("method", name=%m.name);
             let _enter = span.enter();
@@ -20,7 +20,7 @@ impl slang_ui::Hook for App {
         Ok(())
     }
 }
-fn assert_true_lint(cx: &mut slang_ui::Context, cmd: &Cmd) {
+fn assert_true_lint(cx: &slang_ui::Context, cmd: &Cmd) {
     match &cmd.kind {
         CmdKind::Seq(c1, c2) => {
             assert_true_lint(cx, c1);

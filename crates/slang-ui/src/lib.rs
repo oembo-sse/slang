@@ -145,9 +145,9 @@ pub struct HoverResponse {
 }
 
 pub trait Hook {
-    fn analyze(&self, cx: &mut Context, file: &SourceFile) -> Result<()>;
+    fn analyze(&self, cx: &Context, file: &SourceFile) -> Result<()>;
     #[allow(unused_variables)]
-    fn hover(&self, cx: &mut Context, file: &SourceFile, pos: Position) -> Option<HoverResponse> {
+    fn hover(&self, cx: &Context, file: &SourceFile, pos: Position) -> Option<HoverResponse> {
         None
     }
 }
@@ -378,14 +378,14 @@ fn run_hook(
     let _enter = span.enter();
 
     let file = slang::parse_file(src);
-    let mut cx = Context::new(&file);
+    let cx = Context::new(&file);
     for err in &file.parse_errors {
         cx.error(err.span(), format!("parse error: {}", err.msg()));
     }
     for err in &file.tc_errors {
         cx.error(err.span(), err.msg());
     }
-    match hook.analyze(&mut cx, &file) {
+    match hook.analyze(&cx, &file) {
         Ok(()) => Ok(cx.reports()),
         Err(err) => Err((cx.reports(), err)),
     }
@@ -488,9 +488,9 @@ pub struct HoverResult {
 #[tapi::tapi(path = "/hover", method = Post)]
 async fn hover(state: State<AppState>, params: Json<HoverParams>) -> Json<Option<HoverResult>> {
     let file = slang::parse_file(&params.file);
-    let mut cx = Context::new(&file);
+    let cx = Context::new(&file);
     let result = match state.hook.hover(
-        &mut cx,
+        &cx,
         &file,
         slang::Position {
             column: params.pos.column,
