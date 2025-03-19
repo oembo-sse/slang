@@ -819,7 +819,11 @@ impl Block {
 impl Cases {
     fn tc(self, cx: &mut BlockContext) -> Cases {
         Cases {
-            cases: self.cases.into_iter().map(|case| case.tc(cx)).collect(),
+            cases: self
+                .cases
+                .into_iter()
+                .map(|case| cx.nest(|cx| case.tc(cx)))
+                .collect(),
             ..self
         }
     }
