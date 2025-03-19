@@ -60,6 +60,7 @@ pub enum Color {
 }
 
 pub struct Context {
+    storage: smtlib::Storage,
     reports: RwLock<Vec<Report>>,
     message: RwLock<Option<(String, Color)>>,
 }
@@ -67,13 +68,13 @@ pub struct Context {
 struct Logger {}
 
 impl smtlib::Logger for Logger {
-    fn exec(&self, cmd: &smtlib::lowlevel::ast::Command) {
+    fn exec(&self, cmd: smtlib::lowlevel::ast::Command) {
         let span = tracing::span!(tracing::Level::INFO, "smt");
         let _enter = span.enter();
         tracing::info!("> {cmd}")
     }
 
-    fn response(&self, _cmd: &smtlib::lowlevel::ast::Command, res: &str) {
+    fn response(&self, _cmd: smtlib::lowlevel::ast::Command, res: &str) {
         let span = tracing::span!(tracing::Level::INFO, "smt");
         let _enter = span.enter();
         tracing::info!("< {}", res.trim())
@@ -83,13 +84,19 @@ impl smtlib::Logger for Logger {
 impl Context {
     fn new(_file: &SourceFile) -> Context {
         Context {
+            storage: smtlib::Storage::new(),
             reports: Default::default(),
             message: Default::default(),
         }
     }
 
+    pub fn smt_st(&self) -> &smtlib::Storage {
+        &self.storage
+    }
+
     pub fn solver(&self) -> Result<smtlib::Solver<smtlib::backend::z3_binary::Z3Binary>> {
         let mut solver = smtlib::Solver::new(
+            self.smt_st(),
             smtlib::backend::z3_binary::Z3Binary::new("z3")
                 .context("failed to find `z3`. is it installed and in your path?")?,
         )?;

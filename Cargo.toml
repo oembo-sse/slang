@@ -5,3 +5,4 @@ members = ["crates/*", "examples/*"]
 [workspace.dependencies]
 slang = { path = "crates/slang" }
 slang-ui = { path = "crates/slang-ui" }
+smtlib = { git = "https://github.com/oeb25/smtlib-rs", version = "0.2.0", branch = "arena-alloc" }
