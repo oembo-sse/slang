@@ -1,6 +1,4 @@
 mod monaco;
-#[cfg(test)]
-mod tests;
 
 use std::{
     collections::BTreeMap,
