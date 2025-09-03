@@ -4,6 +4,7 @@ mod tests;
 
 use std::{
     collections::BTreeMap,
+    net::SocketAddr,
     path::PathBuf,
     sync::{Arc, RwLock},
 };
@@ -225,10 +226,16 @@ struct Cli {
     command: Option<Command>,
 }
 
-#[derive(clap::Subcommand, Default, Clone)]
+#[derive(clap::Subcommand, Clone)]
 enum Command {
-    #[default]
-    Ui,
+    Ui {
+        /// Automatically open inspectify in the browser
+        #[clap(short, long, default_value_t = false)]
+        open: bool,
+        /// The port to host the server on
+        #[clap(short, long)]
+        port: Option<u16>,
+    },
     Check {
         #[clap(long, short, default_value = "human")]
         format: OutputFormat,
@@ -246,8 +253,13 @@ enum OutputFormat {
 async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command.clone().unwrap_or_default() {
-        Command::Ui => {
+    match cli.command.clone().unwrap_or_else(|| Command::Ui {
+        open: Default::default(),
+        port: None,
+    }) {
+        Command::Ui { open, port } => {
+            let port = port.unwrap_or(3000);
+
             let endpoints = endpoints();
 
             populate_js_client(&endpoints);
@@ -259,7 +271,33 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
                 .route("/{*file}", get(static_handler))
                 .with_state(AppState { hook });
 
-            let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+            if open {
+                tokio::task::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    open::that(format!("http://localhost:{}", port)).unwrap();
+                });
+            }
+
+            let addr = SocketAddr::from(([0, 0, 0, 0], port));
+            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+            {
+                use color_eyre::owo_colors::OwoColorize;
+
+                println!(
+                    r#"
+  {name} {version}
+
+  {arrow}  {visit}:   {url}
+  {arrow}  use {open} to open in browser
+    "#,
+                    name = "Slang".bold().bright_green(),
+                    version = format!("v{}", env!("CARGO_PKG_VERSION")).green(),
+                    arrow = "➜".green(),
+                    visit = "Visit".bold(),
+                    url = format!("http://{addr:?}/").cyan(),
+                    open = "--open".bold(),
+                );
+            }
             axum::serve(listener, app).await.unwrap();
 
             Ok(())

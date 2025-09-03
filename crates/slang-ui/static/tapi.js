@@ -107,11 +107,11 @@ const sse = (url, resTy) => (params, options) => {
 
 
   /**
-   * @typedef {{ files: Record<string, string> }} slang_ui.SampleFiles */
+   * @typedef {{ markers: slang_ui.monaco.MarkerData[], analysis_errored: boolean, message: ([(string | null), slang_ui.Color] | null) }} slang_ui.AnalyzeResult */
   /**
    * @typedef {{ file: string, pos: slang_ui.monaco.MonacoPosition }} slang_ui.HoverParams */
   /**
-   * @typedef {{ markers: slang_ui.monaco.MarkerData[], analysis_errored: boolean, message: ([(string | null), slang_ui.Color] | null) }} slang_ui.AnalyzeResult */
+   * @typedef {{ files: Record<string, string> }} slang_ui.SampleFiles */
   /** @typedef {"Alive"} slang_ui.Heartbeat */
   export const HEARTBEAT = /** @type {slang_ui.Heartbeat[]} */ (["Alive"]);
   /**
