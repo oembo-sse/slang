@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 slang-ui.workspace = true
-tokio = "1.39.2"
+tokio = "1.47.1"

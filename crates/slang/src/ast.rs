@@ -223,6 +223,7 @@ pub struct Cmd {
 }
 
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum CmdKind {
     VarDefinition {

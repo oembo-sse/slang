@@ -62,7 +62,7 @@ impl FileContext {
     fn error(&mut self, span: Span, msg: String) {
         self.errors.push(Error { span, msg });
     }
-    fn block_cx(&mut self) -> BlockContext {
+    fn block_cx<'a>(&'a mut self) -> BlockContext<'a> {
         let scope = self
             .globals
             .iter()

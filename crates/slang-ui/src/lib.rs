@@ -1,4 +1,6 @@
 mod monaco;
+#[cfg(test)]
+mod tests;
 
 use std::{
     collections::BTreeMap,
@@ -94,7 +96,9 @@ impl Context {
         &self.storage
     }
 
-    pub fn solver(&self) -> Result<smtlib::Solver<smtlib::backend::z3_binary::Z3Binary>> {
+    pub fn solver<'st>(
+        &'st self,
+    ) -> Result<smtlib::Solver<'st, smtlib::backend::z3_binary::Z3Binary>> {
         let mut solver = smtlib::Solver::new(
             self.smt_st(),
             smtlib::backend::z3_binary::Z3Binary::new("z3")
