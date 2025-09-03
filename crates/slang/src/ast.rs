@@ -3,32 +3,9 @@ use std::sync::{Arc, Weak};
 use crate::{Items, Span};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ident(pub String);
-
-impl Ident {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn prefix(&self, pre: &str) -> Ident {
-        Ident(pre.to_owned() + "_" + self.as_str())
-    }
-
-    pub fn postfix(&self, post: &str) -> Ident {
-        Ident(self.to_string() + "_" + post)
-    }
-}
-
-impl std::fmt::Display for Ident {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Name {
     pub span: Span,
-    pub ident: Ident,
+    pub ident: String,
 }
 
 impl Name {
@@ -38,14 +15,14 @@ impl Name {
 
     pub fn prefix(&self, pre: &str) -> Name {
         Name {
-            ident: self.ident.prefix(pre),
+            ident: format!("{pre}_{}", self.ident),
             ..self.clone()
         }
     }
 
     pub fn postfix(&self, post: &str) -> Name {
         Name {
-            ident: self.ident.postfix(post),
+            ident: format!("{}_{post}", self.ident),
             ..self.clone()
         }
     }
@@ -77,7 +54,7 @@ pub struct Expr {
 pub enum ExprKind {
     Bool(bool),
     Num(i64),
-    Ident(Ident),
+    Ident(String),
     Old(Name),
     Prefix(PrefixOp, Box<Expr>),
     Result,
@@ -191,7 +168,7 @@ impl std::fmt::Display for Type {
             Type::Int => "Int",
             Type::Bool => "Bool",
             Type::Domain { domain, .. } => return domain.fmt(f),
-            Type::Unknown { name } => &name.ident.0,
+            Type::Unknown { name } => &name.ident,
             Type::Error => "error",
         };
         s.fmt(f)
@@ -344,7 +321,7 @@ pub struct MethodRef(pub(crate) Ref);
 pub(crate) enum Ref {
     #[default]
     Unresolved,
-    Resolved(Ident, Weak<Items>),
+    Resolved(String, Weak<Items>),
 }
 
 impl std::hash::Hash for Ref {
@@ -387,14 +364,15 @@ impl std::fmt::Debug for MethodRef {
 }
 
 impl Ref {
-    fn get(&self) -> Option<(&Ident, Arc<Items>)> {
+    fn get(&self) -> Option<(&str, Arc<Items>)> {
         match self {
             Ref::Unresolved => None,
             Ref::Resolved(id, items) => Some((id, items.upgrade()?)),
         }
     }
 
-    fn ident(&self) -> Option<&Ident> {
+    /// Get the resolved identifier if it exists
+    fn ident(&self) -> Option<&str> {
         match self {
             Ref::Unresolved => None,
             Ref::Resolved(ident, _) => Some(ident),
@@ -538,7 +516,7 @@ pub struct DomainAxiom {
 pub struct DomainRef(pub(crate) Ref);
 
 impl DomainRef {
-    pub fn ident(&self) -> Option<&Ident> {
+    pub fn ident(&self) -> Option<&str> {
         self.0.ident()
     }
     pub fn get(&self) -> Option<Arc<Domain>> {
@@ -550,7 +528,7 @@ impl DomainRef {
 impl std::fmt::Debug for DomainRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.ident() {
-            Some(ident) => f.debug_tuple("DomainRef").field(ident).finish(),
+            Some(ident) => f.debug_tuple("DomainRef").field(&ident).finish(),
             None => f.debug_tuple("DomainRef").field(&"??").finish(),
         }
     }

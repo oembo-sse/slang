@@ -6,8 +6,8 @@ use itertools::Itertools;
 use crate::{
     ast::{
         Block, Case, Cases, Cmd, CmdKind, Domain, DomainAxiom, DomainItem, DomainRef, Expr,
-        ExprKind, File, Function, FunctionRef, Global, Ident, Item, Method, MethodRef, Name, Op,
-        PrefixOp, Range, Specification, Type, Var,
+        ExprKind, File, Function, FunctionRef, Global, Item, Method, MethodRef, Name, Op, PrefixOp,
+        Range, Specification, Type, Var,
     },
     Items, Span,
 };
@@ -46,8 +46,8 @@ struct FunctionSignature {
 #[derive(Default)]
 struct FileContext {
     errors: Vec<Error>,
-    methods: IndexMap<Ident, (MethodSignature, MethodRef)>,
-    functions: IndexMap<Ident, (FunctionSignature, FunctionRef)>,
+    methods: IndexMap<String, (MethodSignature, MethodRef)>,
+    functions: IndexMap<String, (FunctionSignature, FunctionRef)>,
     globals: IndexMap<Name, (Span, Type)>,
     domains: IndexMap<Name, DomainRef>,
 }
@@ -137,10 +137,10 @@ impl<'a> BlockContext<'a> {
         }
     }
 
-    fn lookup_method(&mut self, name: &Ident) -> Option<&(MethodSignature, MethodRef)> {
+    fn lookup_method(&mut self, name: &str) -> Option<&(MethodSignature, MethodRef)> {
         self.file.methods.get(name)
     }
-    fn lookup_function(&mut self, name: &Ident) -> Option<&(FunctionSignature, FunctionRef)> {
+    fn lookup_function(&mut self, name: &str) -> Option<&(FunctionSignature, FunctionRef)> {
         self.file.functions.get(name)
     }
     #[must_use]
@@ -167,35 +167,35 @@ impl<'a> BlockContext<'a> {
             .map(|(name, _)| name)
             .chain(self.scope.iter().map(|(name, _)| name))
     }
-    fn lookup_global(&self, ident: &Ident) -> Option<(&Name, &Type)> {
+    fn lookup_global(&self, ident: &str) -> Option<(&Name, &Type)> {
         self.file
             .globals
             .iter()
-            .find(|(name, _)| &name.ident == ident)
+            .find(|(name, _)| name.ident == ident)
             .map(|(name, (_, ty))| (name, ty))
     }
-    fn lookup_var(&self, ident: &Ident) -> Option<(&Name, &Type)> {
+    fn lookup_var(&self, ident: &str) -> Option<(&Name, &Type)> {
         self.scope
             .iter()
             .rev()
-            .find(|(name, _)| &name.ident == ident)
+            .find(|(name, _)| name.ident == ident)
             .map(|(name, ty)| (name, ty))
             .or_else(|| self.lookup_global(ident))
     }
-    fn lookup_old_var(&self, ident: &Ident) -> Option<(&Name, &Type)> {
+    fn lookup_old_var(&self, ident: &str) -> Option<(&Name, &Type)> {
         self.scope[0..self.def_end]
             .iter()
             .rev()
-            .find(|(name, _)| &name.ident == ident)
+            .find(|(name, _)| name.ident == ident)
             .map(|(name, ty)| (name, ty))
             .or_else(|| self.lookup_global(ident))
     }
-    fn var_ty(&mut self, span: Span, name: &Ident) -> Type {
+    fn var_ty(&mut self, span: Span, name: &str) -> Type {
         match self.lookup_var(name) {
             Some((_, ty)) => ty.clone(),
             None => {
                 if let Some(suggestion) =
-                    did_you_mean(name.as_str(), self.names_in_scope().map(|n| n.as_str())).first()
+                    did_you_mean(name, self.names_in_scope().map(|n| n.as_str())).first()
                 {
                     self.error(
                         span,
@@ -212,7 +212,7 @@ impl<'a> BlockContext<'a> {
             }
         }
     }
-    fn old_var_ty(&mut self, span: Span, name: &Ident) -> Type {
+    fn old_var_ty(&mut self, span: Span, name: &str) -> Type {
         match self.lookup_old_var(name) {
             Some((_, ty)) => ty.clone(),
             None => {
@@ -388,7 +388,7 @@ impl Expr {
                         format!("no function named `{fun_name}` exists, but a method exists with that name")
                     );
                 } else if let Some(suggestion) = did_you_mean(
-                    &fun_name.ident.0,
+                    &fun_name.ident,
                     cx.file.functions.keys().map(|ident| ident.as_str()),
                 )
                 .first()

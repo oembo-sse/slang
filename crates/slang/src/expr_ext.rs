@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use itertools::Itertools;
 
 use crate::{
-    ast::{Expr, ExprKind, FunctionRef, Ident, Name, Op, PrefixOp, Quantifier, Type, Var},
+    ast::{Expr, ExprKind, FunctionRef, Name, Op, PrefixOp, Quantifier, Type, Var},
     Span,
 };
 
@@ -110,8 +110,8 @@ impl Expr {
     pub fn bool(value: bool) -> Expr {
         Expr::new_typed(ExprKind::Bool(value), Type::Bool)
     }
-    pub fn ident(ident: &Ident, ty: &Type) -> Expr {
-        Expr::new_typed(ExprKind::Ident(ident.clone()), ty.clone())
+    pub fn ident(ident: &str, ty: &Type) -> Expr {
+        Expr::new_typed(ExprKind::Ident(ident.to_string()), ty.clone())
     }
     #[must_use]
     pub fn imp(&self, other: &Expr) -> Expr {
@@ -186,14 +186,14 @@ impl Expr {
     }
     /// Substitute all occurrences of `from` with `to`.
     #[must_use]
-    pub fn subst_ident(&self, from: &Ident, to: &Expr) -> Expr {
+    pub fn subst_ident(&self, from: &str, to: &Expr) -> Expr {
         self.subst(|x| x.is_ident(from), to)
     }
     /// Substitute all occurrences of `old(from)` with `to`.
     #[must_use]
-    pub fn subst_old_ident(&self, from: &Ident, to: &Expr) -> Expr {
+    pub fn subst_old_ident(&self, from: &str, to: &Expr) -> Expr {
         self.subst(
-            |x| matches!(&x.kind, ExprKind::Old(i) if &i.ident == from),
+            |x| matches!(&x.kind, ExprKind::Old(i) if i.ident == from),
             to,
         )
     }
@@ -353,7 +353,7 @@ impl<'a, T: Clone> CowUp for Vec<Cow<'a, T>> {
 }
 
 impl Expr {
-    pub fn as_ident(&self) -> Option<&Ident> {
+    pub fn as_ident(&self) -> Option<&str> {
         match &self.kind {
             ExprKind::Ident(i) => Some(i),
             _ => None,
@@ -362,7 +362,7 @@ impl Expr {
     pub fn is_result(&self) -> bool {
         matches!(&self.kind, ExprKind::Result)
     }
-    pub fn is_ident(&self, i: &Ident) -> bool {
+    pub fn is_ident(&self, i: &str) -> bool {
         matches!(&self.kind, ExprKind::Ident(x) if x == i)
     }
 }
@@ -406,7 +406,7 @@ impl std::fmt::Display for Quantifier {
 }
 
 impl Name {
-    pub fn ident(ident: Ident) -> Name {
+    pub fn ident(ident: String) -> Name {
         Name {
             ident,
             span: Span::default(),

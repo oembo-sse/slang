@@ -12,7 +12,7 @@ pub mod tc;
 
 use std::sync::{Arc, RwLock};
 
-use ast::{DomainRef, FunctionRef, Ident, MethodRef, Ref};
+use ast::{DomainRef, FunctionRef, MethodRef, Ref};
 use indexmap::IndexMap;
 pub use parse::ParseResult;
 pub use span::{Position, Span};
@@ -47,20 +47,20 @@ impl SourceFile {
     /// Returns the method with the given identifier.
     ///
     /// The returned ref will be unresolved if no method with that name exists.
-    pub fn get_method_ref(&self, ident: Ident) -> MethodRef {
+    pub fn get_method_ref(&self, ident: String) -> MethodRef {
         MethodRef(self.items.new_ref(ident))
     }
     /// Returns the function with the given identifier.
     ///
     /// The returned ref will be unresolved if no function with that name
     /// exists.
-    pub fn get_function_ref(&self, ident: Ident) -> FunctionRef {
+    pub fn get_function_ref(&self, ident: String) -> FunctionRef {
         FunctionRef(self.items.new_ref(ident))
     }
     /// Returns the domain with the given identifier.
     ///
     /// The returned ref will be unresolved if no domain with that name exists.
-    pub fn get_domain_ref(&self, ident: Ident) -> DomainRef {
+    pub fn get_domain_ref(&self, ident: String) -> DomainRef {
         DomainRef(self.items.new_ref(ident))
     }
 
@@ -74,14 +74,14 @@ impl SourceFile {
 #[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct Items {
-    methods: RwLock<IndexMap<ast::Ident, Arc<ast::Method>>>,
-    functions: RwLock<IndexMap<ast::Ident, (bool, Arc<ast::Function>)>>,
-    domains: RwLock<IndexMap<ast::Ident, Arc<ast::Domain>>>,
-    globals: RwLock<IndexMap<ast::Ident, Arc<ast::Global>>>,
+    methods: RwLock<IndexMap<String, Arc<ast::Method>>>,
+    functions: RwLock<IndexMap<String, (bool, Arc<ast::Function>)>>,
+    domains: RwLock<IndexMap<String, Arc<ast::Domain>>>,
+    globals: RwLock<IndexMap<String, Arc<ast::Global>>>,
 }
 
 impl Items {
-    fn new_ref(self: &Arc<Self>, ident: Ident) -> Ref {
+    fn new_ref(self: &Arc<Self>, ident: String) -> Ref {
         Ref::Resolved(ident, Arc::downgrade(self))
     }
     /// Get the list of methods defined in the source file.
@@ -89,10 +89,10 @@ impl Items {
         self.methods.read().unwrap().values().cloned().collect()
     }
     /// Get the method with the given identifier, if any exists.
-    pub fn method(&self, id: &Ident) -> Option<Arc<ast::Method>> {
+    pub fn method(&self, id: &str) -> Option<Arc<ast::Method>> {
         self.methods.read().ok()?.get(id).cloned()
     }
-    fn insert_method(&self, id: Ident, ast: Arc<ast::Method>) {
+    fn insert_method(&self, id: String, ast: Arc<ast::Method>) {
         self.methods.write().unwrap().insert(id, ast);
     }
     /// Get the list of functions defined in the source file.
@@ -105,10 +105,10 @@ impl Items {
             .collect()
     }
     /// Get the function with the given identifier, if any exists.
-    pub fn function(&self, id: &Ident) -> Option<Arc<ast::Function>> {
+    pub fn function(&self, id: &str) -> Option<Arc<ast::Function>> {
         Some(self.functions.read().ok()?.get(id).cloned()?.1)
     }
-    fn insert_function(&self, id: Ident, is_domain: bool, ast: Arc<ast::Function>) {
+    fn insert_function(&self, id: String, is_domain: bool, ast: Arc<ast::Function>) {
         self.functions.write().unwrap().insert(id, (is_domain, ast));
     }
     /// Get the list of domains defined in the source file.
@@ -116,10 +116,10 @@ impl Items {
         self.domains.read().unwrap().values().cloned().collect()
     }
     /// Get the domain with the given identifier, if any exists.
-    pub fn domain(&self, id: &Ident) -> Option<Arc<ast::Domain>> {
+    pub fn domain(&self, id: &str) -> Option<Arc<ast::Domain>> {
         self.domains.read().ok()?.get(id).cloned()
     }
-    fn insert_domain(&self, id: Ident, ast: Arc<ast::Domain>) {
+    fn insert_domain(&self, id: String, ast: Arc<ast::Domain>) {
         self.domains.write().unwrap().insert(id, ast);
     }
     /// Get the list of globals defined in the source file.
@@ -127,10 +127,10 @@ impl Items {
         self.globals.read().unwrap().values().cloned().collect()
     }
     /// Get the global with the given identifier, if any exists.
-    pub fn global(&self, id: &Ident) -> Option<Arc<ast::Global>> {
+    pub fn global(&self, id: &str) -> Option<Arc<ast::Global>> {
         self.globals.read().ok()?.get(id).cloned()
     }
-    fn insert_global(&self, id: Ident, ast: Arc<ast::Global>) {
+    fn insert_global(&self, id: String, ast: Arc<ast::Global>) {
         self.globals.write().unwrap().insert(id, ast);
     }
 }
