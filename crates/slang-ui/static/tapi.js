@@ -107,17 +107,19 @@ const sse = (url, resTy) => (params, options) => {
 
 
   /**
-   * @typedef {{ markers: slang_ui.monaco.MarkerData[], analysis_errored: boolean, message: ([(string | null), slang_ui.Color] | null) }} slang_ui.AnalyzeResult */
-  /**
    * @typedef {{ file: string, pos: slang_ui.monaco.MonacoPosition }} slang_ui.HoverParams */
-  /**
-   * @typedef {{ files: Record<string, string> }} slang_ui.SampleFiles */
-  /** @typedef {"Alive"} slang_ui.Heartbeat */
-  export const HEARTBEAT = /** @type {slang_ui.Heartbeat[]} */ (["Alive"]);
   /**
    * @typedef {{ file: string }} slang_ui.AnalyzeParams */
   /**
+   * @typedef {{ markers: slang_ui.monaco.MarkerData[], analysis_errored: boolean, message: ([(string | null), slang_ui.Color] | null), panes: slang_ui.Pane[] }} slang_ui.AnalyzeResult */
+  /** @typedef {"Alive"} slang_ui.Heartbeat */
+  export const HEARTBEAT = /** @type {slang_ui.Heartbeat[]} */ (["Alive"]);
+  /**
+   * @typedef {{ files: Record<string, string> }} slang_ui.SampleFiles */
+  /**
    * @typedef {{ span: slang_ui.monaco.MonacoSpan, contents: string[] }} slang_ui.HoverResult */
+  /**
+   * @typedef {{ name: string, content: string }} slang_ui.Pane */
   /** @typedef {"Red" | "Green" | "Blue"} slang_ui.Color */
   export const COLOR = /** @type {slang_ui.Color[]} */ (["Red", "Green", "Blue"]);
   

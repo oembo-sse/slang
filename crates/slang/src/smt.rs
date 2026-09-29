@@ -27,9 +27,9 @@ impl Function {
         let args = self
             .args
             .iter()
-            .map(|arg| arg.ty.1.smt(st))
+            .map(|arg| arg.ty.smt(st))
             .collect::<Result<Vec<_>, SmtError>>()?;
-        let return_ty = self.return_ty.1.smt(st)?;
+        let return_ty = self.return_ty.smt(st)?;
         Ok(smtlib::funs::Fun::new(
             st,
             self.name.as_str(),
@@ -97,7 +97,7 @@ impl Expr {
                 let vars: Result<Vec<_>, SmtError> = vars
                     .iter()
                     .map(|var| {
-                        let sort = var.ty.1.smt(st)?;
+                        let sort = var.ty.smt(st)?;
                         Ok(sort.new_const(st, var.name.as_str()))
                     })
                     .collect();
@@ -118,9 +118,9 @@ impl Expr {
                 let f = function.get().unwrap();
 
                 let params: Result<Vec<_>, SmtError> =
-                    f.args.iter().map(|arg| arg.ty.1.smt(st)).collect();
+                    f.args.iter().map(|arg| arg.ty.smt(st)).collect();
                 let params = params?;
-                let return_ty = f.return_ty.1.smt(st)?;
+                let return_ty = f.return_ty.smt(st)?;
                 let f = smtlib::funs::Fun::new(st, fun_name.as_str(), params, return_ty);
 
                 let args: Result<Vec<_>, SmtError> = args.iter().map(|e| e.smt(st)).collect();

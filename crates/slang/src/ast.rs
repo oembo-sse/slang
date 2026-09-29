@@ -38,7 +38,7 @@ impl std::fmt::Display for Name {
 pub struct Var {
     pub span: Span,
     pub name: Name,
-    pub ty: (Span, Type),
+    pub ty: Type,
 }
 
 #[non_exhaustive]
@@ -205,7 +205,8 @@ pub struct Cmd {
 pub enum CmdKind {
     VarDefinition {
         name: Name,
-        ty: (Span, Type),
+        ty: Type,
+        ty_span: Span,
         expr: Option<Expr>,
     },
     Assignment {
@@ -287,7 +288,8 @@ pub struct Method {
     pub span: Span,
     pub name: Name,
     pub args: Vec<Var>,
-    pub return_ty: Option<(Span, Type)>,
+    pub return_ty: Option<Type>,
+    pub return_ty_span: Option<Span>,
     pub specifications: Vec<Specification>,
     pub variant: Option<Expr>,
     pub body: Option<Block>,
@@ -392,7 +394,8 @@ pub struct Function {
     pub span: Span,
     pub name: Name,
     pub args: Vec<Var>,
-    pub return_ty: (Span, Type),
+    pub return_ty: Type,
+    pub return_ty_span: Span,
     pub body: Option<Expr>,
     pub specifications: Vec<Specification>,
 }

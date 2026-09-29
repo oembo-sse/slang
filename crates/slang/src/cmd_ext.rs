@@ -13,7 +13,8 @@ impl Cmd {
     pub fn vardef(name: &Name, ty: &Type, expr: &Option<Expr>) -> Cmd {
         Cmd::new(CmdKind::VarDefinition {
             name: name.clone(),
-            ty: (Span::default(), ty.clone()),
+            ty: ty.clone(),
+            ty_span: Span::default(),
             expr: expr.clone(),
         })
     }
@@ -110,14 +111,14 @@ impl Cmd {
 
     pub fn assigned_vars(self) -> Vec<(Name, Type)> {
         match &self.kind {
-            CmdKind::VarDefinition { name, ty, .. } => vec![(name.clone(), ty.1.clone())],
+            CmdKind::VarDefinition { name, ty, .. } => vec![(name.clone(), ty.clone())],
             CmdKind::MethodCall {
                 name: Some(name),
                 method,
                 ..
             } => vec![(
                 name.clone(),
-                method.get().unwrap().return_ty.clone().unwrap().1,
+                method.get().unwrap().return_ty.clone().unwrap(),
             )],
             CmdKind::Assignment { name, expr } => vec![(name.clone(), expr.ty.clone())],
             CmdKind::Match { body } | CmdKind::Loop { body, .. } => body
@@ -149,11 +150,16 @@ impl Cmd {
 impl CmdKind {
     fn infer_span(&self) -> Option<Span> {
         Some(match self {
-            CmdKind::VarDefinition { name, ty, expr } => {
+            CmdKind::VarDefinition {
+                name,
+                ty: _,
+                ty_span,
+                expr,
+            } => {
                 if let Some(expr) = expr {
-                    name.span.union(ty.0).union(expr.span)
+                    name.span.union(*ty_span).union(expr.span)
                 } else {
-                    name.span.union(ty.0)
+                    name.span.union(*ty_span)
                 }
             }
             CmdKind::Assignment { name, expr } => name.span.union(expr.span),

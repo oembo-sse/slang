@@ -55,7 +55,7 @@ struct BlockContext<'a> {
     file: &'a mut FileContext,
     scope: Vec<(Name, Type)>,
     def_end: usize,
-    expected_return_ty: Option<(Span, Type)>,
+    expected_return_ty: Option<Type>,
     is_loop: bool,
 }
 impl FileContext {
@@ -110,7 +110,7 @@ impl FileContext {
         Var {
             span: var.span,
             name: var.name.clone(),
-            ty: (var.ty.0, self.resolve_ty(var.ty.0, &var.ty.1)),
+            ty: self.resolve_ty(var.span, &var.ty),
         }
     }
 }
@@ -130,7 +130,7 @@ impl<'a> BlockContext<'a> {
         self.scope.truncate(len);
         res
     }
-    fn with_expected_return_ty(self, expected_return_ty: Option<(Span, Type)>) -> Self {
+    fn with_expected_return_ty(self, expected_return_ty: Option<Type>) -> Self {
         Self {
             expected_return_ty,
             ..self
@@ -149,12 +149,12 @@ impl<'a> BlockContext<'a> {
     }
     #[must_use]
     fn register_var(&mut self, var: Var) -> Var {
-        let ty = self.resolve_ty(var.ty.0, &var.ty.1);
+        let ty = self.resolve_ty(var.span, &var.ty);
         self.scope.push((var.name.clone(), ty.clone()));
         Var {
             span: var.span,
             name: var.name,
-            ty: (var.ty.0, ty),
+            ty,
         }
     }
     fn register(&mut self, name: Name, ty: Type) {
@@ -319,7 +319,7 @@ impl<'a> BlockContext<'a> {
             );
         }
         for (def, given) in def_args.iter().zip(args) {
-            self.expect_to_be(given.span, &given.ty, &def.ty.1);
+            self.expect_to_be(given.span, &given.ty, &def.ty);
         }
     }
 
@@ -354,7 +354,7 @@ impl Expr {
                 ..self
             },
             ExprKind::Result => Expr {
-                ty: if let Some((_, return_ty)) = &cx.expected_return_ty {
+                ty: if let Some(return_ty) = &cx.expected_return_ty {
                     return_ty.clone()
                 } else {
                     // TODO: should we report an error here?
@@ -524,13 +524,14 @@ impl Op {
 impl Cmd {
     fn tc(self, cx: &mut BlockContext) -> Cmd {
         match self.kind {
-            CmdKind::VarDefinition { name, ty, expr } => {
+            CmdKind::VarDefinition {
+                name,
+                ty,
+                ty_span,
+                expr,
+            } => {
                 let expr = expr.map(|expr| expr.tc(cx));
-                let Var {
-                    name,
-                    ty: (ty_span, ty),
-                    ..
-                } = cx.register_var(Var {
+                let Var { name, ty, .. } = cx.register_var(Var {
                     span: name.span,
                     name: name.clone(),
                     ty,
@@ -553,7 +554,8 @@ impl Cmd {
                 Cmd {
                     kind: CmdKind::VarDefinition {
                         name,
-                        ty: (ty_span, var_ty.clone()),
+                        ty: var_ty.clone(),
+                        ty_span,
                         expr,
                     },
                     ..self
@@ -683,7 +685,7 @@ impl Cmd {
                 let expr = if let Some(expr) = expr {
                     let expr = expr.tc(cx);
                     match cx.expected_return_ty.clone() {
-                        Some((_, ty)) => {
+                        Some(ty) => {
                             // TODO: Update error message to say something about return type
                             cx.expect_to_be(expr.span, &ty, &expr.ty);
                         }
@@ -697,7 +699,7 @@ impl Cmd {
                     }
                     Some(expr)
                 } else {
-                    if let Some((_, ty)) = &cx.expected_return_ty {
+                    if let Some(ty) = &cx.expected_return_ty {
                         cx.error(
                             self.span,
                             format!("missing return expression of type `{ty}`"),
@@ -957,7 +959,7 @@ impl Global {
         let mut cx = cx.block_cx();
         let init = self.init.map(|init| {
             let init = init.tc(&mut cx);
-            cx.expect_to_be(init.span, &self.var.ty.1, &init.ty);
+            cx.expect_to_be(init.span, &self.var.ty, &init.ty);
             init
         });
         Global { init, ..self }
@@ -998,14 +1000,15 @@ impl File {
                     method.return_ty = method
                         .return_ty
                         .as_ref()
-                        .map(|(span, ty)| (*span, cx.resolve_ty(*span, ty)));
+                        .zip(method.return_ty_span)
+                        .map(|(ty, span)| cx.resolve_ty(span, ty));
                     cx.methods.insert(
                         method.name.ident.clone(),
                         (
                             MethodSignature {
                                 name: method.name.clone(),
                                 args: method.args.clone(),
-                                return_ty: method.return_ty.as_ref().map(|(_, ty)| ty.clone()),
+                                return_ty: method.return_ty.clone(),
                             },
                             MethodRef(items.new_ref(method.name.ident.clone())),
                         ),
@@ -1013,14 +1016,14 @@ impl File {
                 }
                 Item::Function(f) => {
                     f.args = cx.resolve_vars(&f.args);
-                    f.return_ty = (f.return_ty.0, cx.resolve_ty(f.return_ty.0, &f.return_ty.1));
+                    f.return_ty = cx.resolve_ty(f.return_ty_span, &f.return_ty);
                     cx.functions.insert(
                         f.name.ident.clone(),
                         (
                             FunctionSignature {
                                 name: f.name.clone(),
                                 args: f.args.clone(),
-                                return_ty: f.return_ty.1.clone(),
+                                return_ty: f.return_ty.clone(),
                             },
                             FunctionRef(items.new_ref(f.name.ident.clone())),
                         ),
@@ -1030,7 +1033,7 @@ impl File {
                     global.var = cx.resolve_var(&global.var);
                     cx.globals.insert(
                         global.var.name.clone(),
-                        (global.var.span, global.var.ty.1.clone()),
+                        (global.var.span, global.var.ty.clone()),
                     );
                 }
                 Item::Domain(domain) => {
@@ -1038,15 +1041,14 @@ impl File {
                         match item {
                             DomainItem::Function(f) => {
                                 f.args = cx.resolve_vars(&f.args);
-                                f.return_ty =
-                                    (f.return_ty.0, cx.resolve_ty(f.return_ty.0, &f.return_ty.1));
+                                f.return_ty = cx.resolve_ty(f.return_ty_span, &f.return_ty);
                                 cx.functions.insert(
                                     f.name.ident.clone(),
                                     (
                                         FunctionSignature {
                                             name: f.name.clone(),
                                             args: f.args.clone(),
-                                            return_ty: f.return_ty.1.clone(),
+                                            return_ty: f.return_ty.clone(),
                                         },
                                         FunctionRef(items.new_ref(f.name.ident.clone())),
                                     ),

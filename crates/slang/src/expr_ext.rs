@@ -136,7 +136,7 @@ impl Expr {
     }
     pub fn call(name: Name, args: Vec<Expr>, fun_ref: FunctionRef) -> Expr {
         let ty = if let Some(fun) = fun_ref.get() {
-            fun.return_ty.1.clone()
+            fun.return_ty.clone()
         } else {
             Type::Error
         };
@@ -392,7 +392,7 @@ impl std::fmt::Display for Expr {
 
 impl std::fmt::Display for Var {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.name, self.ty.1)
+        write!(f, "{}: {}", self.name, self.ty)
     }
 }
 

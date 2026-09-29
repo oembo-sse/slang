@@ -141,6 +141,10 @@ const run = async () => {
   const model = editor.getModel();
   if (!model) return;
 
+  new ResizeObserver(() => {
+    editor.layout();
+  }).observe(container);
+
   const updateUI = () => {
     statusBarText.textContent = `${state} / ${analysis.type}`;
 
@@ -172,7 +176,7 @@ const run = async () => {
             severity: SEVERITY_MAP[m.severity],
             message: m.message,
             ...m.span,
-          }))
+          })),
         );
       }
     } else if (state == "disconnected") {

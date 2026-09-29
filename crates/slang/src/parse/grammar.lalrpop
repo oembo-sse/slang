@@ -22,7 +22,7 @@ Name: Name = Spanned<Ident> => Name { span: <>.0, ident: <>.1 };
 Var: Var = Spanned<(<Name> ":" <Spanned<Type>>)> => Var {
     span: <>.0,
     name: <>.1 .0,
-    ty: <>.1 .1,
+    ty: <>.1 .1 .1,
 };
 
 pub File: File = {
@@ -45,28 +45,34 @@ Specification: Specification = {
 Specifications: Vec<Specification> = Specification*;
 
 pub Method: Method = {
-    <l:@L> "method" <name:Name> "(" <args:Args> ")" <return_ty:(":" <Spanned<Type>>)?> <specifications:Specifications> <variant: Variant?> <body:Block?> <r:@R> =>
+    <l:@L> "method" <name:Name> "(" <args:Args> ")" <return_ty:(":" <Spanned<Type>>)?> <specifications:Specifications> <variant: Variant?> <body:Block?> <r:@R> => {
+        let (return_ty_span, return_ty) = return_ty.unzip();
         Method {
             span: Span::from_start_end(l, r),
             name,
             args,
             return_ty,
+            return_ty_span,
             specifications,
             variant,
             body,
-        },
+        }
+    }
 }
 
 pub Function: Function = {
-    <l:@L> "function" <name:Name> "(" <args:Args> ")" ":" <return_ty:Spanned<Type>> <specifications:Specifications> <body:("{" <Expr> "}")?> <r:@R> =>
+    <l:@L> "function" <name:Name> "(" <args:Args> ")" ":" <return_ty:Spanned<Type>> <specifications:Specifications> <body:("{" <Expr> "}")?> <r:@R> => {
+        let (return_ty_span, return_ty) = return_ty;
         Function {
             span: Span::from_start_end(l, r),
             name,
             args,
             return_ty,
+            return_ty_span,
             specifications,
             body,
-        },
+        }
+    }
 }
 
 Domain: Domain = {
@@ -91,15 +97,18 @@ DomainAxiom: DomainAxiom = {
 }
 
 DomainFunction: Function = {
-    <l:@L> "function" <name:Name> "(" <args:Args> ")" ":" <return_ty:Spanned<Type>> <specifications:Specifications> <r:@R> =>
+    <l:@L> "function" <name:Name> "(" <args:Args> ")" ":" <return_ty:Spanned<Type>> <specifications:Specifications> <r:@R> => {
+        let (return_ty_span, return_ty) = return_ty;
         Function {
             span: Span::from_start_end(l, r),
             name,
             args,
             return_ty,
+            return_ty_span,
             specifications,
             body: None,
         }
+    }
 }
 
 Global: Global = {
@@ -119,8 +128,10 @@ Args: Vec<Var> = {
 
 pub Cmd: Cmd = {
     #[precedence(level = "0")]
-    <l:@L> "var" <name:Name> <ty:(":" <Spanned<Type>>)?> <expr:(":=" <Expr>)?> <r:@R> =>
-        CmdKind::VarDefinition { ty: ty.unwrap_or((name.span, Type::Unresolved)), name, expr }.parsed(l, r),
+    <l:@L> "var" <name:Name> <ty:(":" <Spanned<Type>>)?> <expr:(":=" <Expr>)?> <r:@R> => {
+        let (ty_span, ty) = ty.unwrap_or((name.span, Type::Unresolved));
+        CmdKind::VarDefinition { ty, ty_span, name, expr }.parsed(l, r)
+    },
     <l:@L> <name:Name> ":=" <expr:Expr> <r:@R> =>
         CmdKind::Assignment { name, expr }.parsed(l, r),
 

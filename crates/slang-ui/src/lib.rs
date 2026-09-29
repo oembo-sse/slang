@@ -60,10 +60,18 @@ pub enum Color {
     Blue,
 }
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, tapi::Tapi)]
+pub struct Pane {
+    pub name: String,
+    pub content: String,
+}
+
 pub struct Context {
     storage: smtlib::Storage,
     reports: RwLock<Vec<Report>>,
     message: RwLock<Option<(String, Color)>>,
+    panes: RwLock<Vec<Pane>>,
 }
 
 struct Logger {}
@@ -88,6 +96,7 @@ impl Context {
             storage: smtlib::Storage::new(),
             reports: Default::default(),
             message: Default::default(),
+            panes: Default::default(),
         }
     }
 
@@ -133,12 +142,22 @@ impl Context {
     pub fn reports(&self) -> Vec<Report> {
         self.reports.read().unwrap().clone()
     }
+    pub fn panes(&self) -> Vec<Pane> {
+        self.panes.read().unwrap().clone()
+    }
 
     #[track_caller]
     pub fn todo(&self, span: Span) {
         let msg = format!("not yet implemented: {}", std::panic::Location::caller());
         tracing::error!("{msg}");
         self.warning(span, msg);
+    }
+
+    pub fn pane(&self, title: &str, content: &str) {
+        self.panes.write().unwrap().push(Pane {
+            name: title.to_string(),
+            content: content.to_string(),
+        });
     }
 }
 
@@ -192,12 +211,12 @@ pub struct TestResult {
 
 pub fn test(hook: impl Hook + 'static, src: &str) -> TestResult {
     match run_hook(&hook, src) {
-        Ok(reports) => TestResult {
-            reports,
+        Ok(results) => TestResult {
+            reports: results.reports,
             error: None,
         },
-        Err((reports, error)) => TestResult {
-            reports,
+        Err((results, error)) => TestResult {
+            reports: results.reports,
             error: Some(error),
         },
     }
@@ -263,7 +282,7 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
             populate_js_client(&endpoints);
 
             let app = Router::new()
-                .nest("/api", Router::new().tapis(endpoints.into_iter()))
+                .nest("/api", Router::new().tapis(endpoints))
                 .route("/", get(index_handler))
                 .route("/index.html", get(index_handler))
                 .route("/{*file}", get(static_handler))
@@ -304,12 +323,12 @@ async fn run_impl(hook: Arc<dyn Hook + Send + Sync + 'static>) -> Result<()> {
             let src = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read '{}'", path.display()))?;
 
-            let reports = match run_hook(&*hook, &src) {
-                Ok(reports) => reports,
+            let results = match run_hook(&*hook, &src) {
+                Ok(results) => results,
                 Err((_, error)) => return Err(error),
             };
 
-            let diagnostics = reports.into_iter().map(|report| {
+            let diagnostics = results.reports.into_iter().map(|report| {
                 miette::diagnostic!(
                     labels = vec![miette::LabeledSpan::at(
                         (report.span.start(), report.span.len()),
@@ -410,10 +429,16 @@ fn endpoints() -> tapi::endpoints::Endpoints<'static, AppState> {
     ])
 }
 
+#[derive(Debug)]
+struct HookResults {
+    reports: Vec<Report>,
+    panes: Vec<Pane>,
+}
+
 fn run_hook(
     hook: &dyn Hook,
     src: &str,
-) -> Result<Vec<Report>, (Vec<Report>, color_eyre::eyre::Error)> {
+) -> Result<HookResults, (HookResults, color_eyre::eyre::Error)> {
     let span = tracing::span!(parent: tracing::Span::none(), tracing::Level::INFO, "analyze");
     let _enter = span.enter();
 
@@ -426,8 +451,20 @@ fn run_hook(
         cx.error(err.span(), err.msg());
     }
     match hook.analyze(&cx, &file) {
-        Ok(()) => Ok(cx.reports()),
-        Err(err) => Err((cx.reports(), err)),
+        Ok(()) => {
+            let results = HookResults {
+                reports: cx.reports(),
+                panes: cx.panes(),
+            };
+            Ok(results)
+        }
+        Err(err) => {
+            let results = HookResults {
+                reports: cx.reports(),
+                panes: cx.panes(),
+            };
+            Err((results, err))
+        }
     }
 }
 
@@ -483,19 +520,21 @@ pub struct AnalyzeResult {
     markers: Vec<monaco::MarkerData>,
     analysis_errored: bool,
     message: Option<(Option<String>, Color)>,
+    panes: Vec<Pane>,
 }
 
 #[tapi::tapi(path = "/analyze", method = Post)]
 async fn analyze(state: State<AppState>, params: Json<AnalyzeParams>) -> Json<AnalyzeResult> {
-    let (reports, analysis_errored) = match run_hook(state.hook.as_ref(), &params.file) {
-        Ok(reports) => (reports, false),
-        Err((reports, err)) => {
+    let (results, analysis_errored) = match run_hook(state.hook.as_ref(), &params.file) {
+        Ok(results) => (results, false),
+        Err((results, err)) => {
             eprintln!("{err:?}");
-            (reports, true)
+            (results, true)
         }
     };
     Json(AnalyzeResult {
-        markers: reports
+        markers: results
+            .reports
             .iter()
             .map(|r| monaco::MarkerData {
                 related_information: None,
@@ -511,6 +550,7 @@ async fn analyze(state: State<AppState>, params: Json<AnalyzeParams>) -> Json<An
             .collect(),
         analysis_errored,
         message: None,
+        panes: results.panes,
     })
 }
 

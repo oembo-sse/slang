@@ -5,4 +5,4 @@ members = ["crates/*", "examples/*"]
 [workspace.dependencies]
 slang = { path = "crates/slang" }
 slang-ui = { path = "crates/slang-ui" }
-smtlib = "0.3.0"
+smtlib = "0.4.0"

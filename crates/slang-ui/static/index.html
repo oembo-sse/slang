@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -10,7 +10,7 @@
   <body>
     <div>
       <div
-        class="w-full h-screen grid grid-rows-[auto_1fr_auto] overflow-hidden"
+        class="w-full h-screen grid grid-rows-[auto_1fr_auto] overflow-hidden relative"
       >
         <div></div>
 
@@ -18,23 +18,29 @@
           <div id="container" class="absolute inset-0"></div>
         </div>
 
+        <!-- <div class="grid grid-flow-col">
+          <div class="relative overflow-hidden grid resize-x">
+            <div id="container" class="absolute inset-0"></div>
+            <div
+              class="absolute right-1 bottom-0 bg-red-300 flex gap-1 px-1 rounded-t"
+            >
+              <div>1</div>
+              <div>2</div>
+              <div>3</div>
+              <div>4</div>
+            </div>
+          </div>
+          <div class="grid place-items-center resize-x">THIS IS IT</div>
+        </div> -->
+
         <div id="status-bar">
           <div class="flex items-center p-2 text-2xl text-white">
             <span id="status-bar-text" class="font-bold"> ... </span>
             <div class="flex-1"></div>
             <span class="text-xl bg-transparent text-black">
-              <select id="sample-files" class="text-black appearance-none" >
-                <option selected value> -- select a program -- </option>
-                <!-- <option class="text-black">Hello</option>
-                <option class="text-black">World</option> -->
+              <select id="sample-files" class="text-black appearance-none">
+                <option selected value>-- select a program --</option>
               </select>
-              <!-- {#if !$parseError && $state == 'checked'}
-              {#if $result.is_fully_annotated}
-              The program is <b>fully annotated</b>
-              {:else}
-              The program is <b><i>not</i> fully annotated</b>
-              {/if}
-            {/if} -->
             </span>
           </div>
         </div>
