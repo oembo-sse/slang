@@ -527,8 +527,13 @@ pub struct AnalyzeResult {
 async fn analyze(state: State<AppState>, params: Json<AnalyzeParams>) -> Json<AnalyzeResult> {
     let (results, analysis_errored) = match run_hook(state.hook.as_ref(), &params.file) {
         Ok(results) => (results, false),
-        Err((results, err)) => {
+        Err((mut results, err)) => {
             eprintln!("{err:?}");
+            results.reports.push(Report {
+                severity: Severity::Error,
+                span: Default::default(),
+                message: err.to_string(),
+            });
             (results, true)
         }
     };

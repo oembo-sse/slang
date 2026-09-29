@@ -87,7 +87,7 @@ function sum_rec(list: List): Int {
 /** @type {AppState} */
 let state = "disconnected";
 
-/** @typedef {{type: "idle"} | {type: "analyzing"} | {type: "error"} | {type: "analyzed", markers: TAPI.slang_ui.monaco.MarkerData[]}} Analysis */
+/** @typedef {{type: "idle"} | {type: "analyzing"} | {type: "error", markers: TAPI.slang_ui.monaco.MarkerData[]} | {type: "crashed", markers: TAPI.slang_ui.monaco.MarkerData[]} | {type: "analyzed", markers: TAPI.slang_ui.monaco.MarkerData[]}} Analysis */
 /** @type {Analysis} */
 let analysis = { type: "idle" };
 
@@ -146,39 +146,35 @@ const run = async () => {
   }).observe(container);
 
   const updateUI = () => {
-    statusBarText.textContent = `${state} / ${analysis.type}`;
+    const message =
+      analysis.type == "crashed" ? "crashed (see terminal)" : analysis.type;
+    statusBarText.textContent = `${state} / ${message}`;
 
     const colors = {
       idle: "bg-gray-500",
       checking: "bg-yellow-500",
       checked: "bg-blue-900",
       error: "bg-red-500",
+      crash: "bg-orange-500",
     };
 
-    // TODO: fix empty messages
-
     if (state == "connected") {
-      if (analysis.type == "idle") {
-        monaco.editor.setModelMarkers(model, "slang", []);
-        statusBar.className = colors.idle;
-      } else if (analysis.type == "analyzing") {
-        monaco.editor.setModelMarkers(model, "slang", []);
-        statusBar.className = colors.checking;
-      } else if (analysis.type == "error") {
-        monaco.editor.setModelMarkers(model, "slang", []);
-        statusBar.className = colors.error;
-      } else {
-        statusBar.className = colors.checked;
-        monaco.editor.setModelMarkers(
-          model,
-          "slang",
-          analysis.markers.map((m) => ({
-            severity: SEVERITY_MAP[m.severity],
-            message: m.message,
-            ...m.span,
-          })),
-        );
-      }
+      const markers =
+        "markers" in analysis
+          ? analysis.markers.map((m) => ({
+              severity: SEVERITY_MAP[m.severity],
+              message: m.message || "unspecified error",
+              ...m.span,
+            }))
+          : [];
+      monaco.editor.setModelMarkers(model, "slang", markers);
+      statusBar.className = {
+        idle: colors.idle,
+        analyzing: colors.checking,
+        error: colors.error,
+        analyzed: colors.checked,
+        crashed: colors.crash,
+      }[analysis.type];
     } else if (state == "disconnected") {
       statusBar.className = colors.idle;
       monaco.editor.setModelMarkers(model, "slang", []);
@@ -206,11 +202,14 @@ const run = async () => {
       updateUI();
       const res = await request.data;
       if (currentRequest.isAborted) return;
-      analysis = { type: "analyzed", markers: res.markers };
+      analysis = {
+        type: res.analysis_errored ? "crashed" : "analyzed",
+        markers: res.markers,
+      };
       updateUI();
     } catch (e) {
       if (currentRequest && !currentRequest.isAborted) {
-        analysis = { type: "error" };
+        analysis = { type: "error", markers: [] };
         updateUI();
       }
     }
